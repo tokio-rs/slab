@@ -3,7 +3,7 @@ use std::iter::IntoIterator;
 use std::ops;
 
 /// A preallocated chunk of memory for storing objects of the same type.
-pub struct Slab<T, I : Index> {
+pub struct Slab<T, I: Index> {
     // Chunk of memory
     entries: Vec<Entry<T>>,
     // Number of elements currently in the slab
@@ -37,6 +37,13 @@ impl Index for usize {
 const MAX: usize = usize::MAX;
 
 unsafe impl<T, I : Index> Send for Slab<T, I> where T: Send {}
+
+macro_rules! some {
+    ($expr:expr) => (match $expr {
+        Some(val) => val,
+        None => return None,
+    })
+}
 
 // TODO: Once NonZero lands, use it to optimize the layout
 impl<T, I : Index> Slab<T, I> {
@@ -83,11 +90,10 @@ impl<T, I : Index> Slab<T, I> {
 
     #[inline]
     pub fn contains(&self, idx : I) -> bool {
-        if idx.as_usize() < self.off.as_usize() {
-            return false;
-        }
-
-        let idx = self.global_to_local_idx(idx);
+        let idx = match self.global_to_local_idx(idx) {
+            Some(idx) => idx,
+            None => return false,
+        };
 
         if idx < self.entries.len() {
             return self.entries[idx].in_use();
@@ -97,7 +103,7 @@ impl<T, I : Index> Slab<T, I> {
     }
 
     pub fn get(&self, idx: I) -> Option<&T> {
-        let idx = self.global_to_local_idx(idx);
+        let idx = some!(self.global_to_local_idx(idx));
 
         if idx <= MAX {
             if idx < self.entries.len() {
@@ -109,7 +115,7 @@ impl<T, I : Index> Slab<T, I> {
     }
 
     pub fn get_mut(&mut self, idx: I) -> Option<&mut T> {
-        let idx = self.global_to_local_idx(idx);
+        let idx = some!(self.global_to_local_idx(idx));
 
         if idx <= MAX {
             if idx < self.entries.len() {
@@ -167,7 +173,7 @@ impl<T, I : Index> Slab<T, I> {
 
     /// Releases the given slot
     pub fn remove(&mut self, idx: I) -> Option<T> {
-        let idx = self.global_to_local_idx(idx);
+        let idx = some!(self.global_to_local_idx(idx));
 
         if idx > self.entries.len() {
             return None;
@@ -184,7 +190,7 @@ impl<T, I : Index> Slab<T, I> {
     }
 
     pub fn replace(&mut self, idx: I, t : T) -> Option<T> {
-        let idx = self.global_to_local_idx(idx);
+        let idx = some!(self.global_to_local_idx(idx));
 
         if idx > self.entries.len() {
             return None;
@@ -221,8 +227,15 @@ impl<T, I : Index> Slab<T, I> {
         panic!("invalid index {} -- greater than capacity {}", idx, self.entries.capacity());
     }
 
-    fn global_to_local_idx(&self, idx: I) -> usize {
-        idx.as_usize() - self.off.as_usize()
+    fn global_to_local_idx(&self, idx: I) -> Option<usize> {
+        let idx = idx.as_usize();
+        let off = self.off.as_usize();
+
+        if idx < off {
+            return None;
+        }
+
+        Some(idx.as_usize() - self.off.as_usize())
     }
 
     fn local_to_global_idx(&self, idx: usize) -> I {
@@ -234,7 +247,7 @@ impl<T, I : Index> ops::Index<I> for Slab<T, I> {
     type Output = T;
 
     fn index<'a>(&'a self, idx: I) -> &'a T {
-        let idx = self.global_to_local_idx(idx);
+        let idx = self.global_to_local_idx(idx).expect("invalid index");
         let idx = self.validate_idx(idx);
 
         self.entries[idx].val.as_ref()
@@ -244,7 +257,7 @@ impl<T, I : Index> ops::Index<I> for Slab<T, I> {
 
 impl<T, I : Index> ops::IndexMut<I> for Slab<T, I> {
     fn index_mut<'a>(&'a mut self, idx: I) -> &'a mut T {
-        let idx = self.global_to_local_idx(idx);
+        let idx = self.global_to_local_idx(idx).expect("invalid index");
         let idx = self.validate_idx(idx);
 
         self.entries[idx].val.as_mut()
@@ -534,5 +547,11 @@ mod tests {
         assert_eq!(slab[tok], 12);
         assert_eq!(slab.get_mut(1), None);
         assert_eq!(slab.get_mut(23), None);
+    }
+
+    #[test]
+    fn test_invalid_index_with_starting_at() {
+        let slab = Slab::<u32, usize>::new_starting_at(1, 1);
+        assert_eq!(slab.get(0), None);
     }
 }
