@@ -34,8 +34,6 @@ impl Index for usize {
     }
 }
 
-const MAX: usize = usize::MAX;
-
 unsafe impl<T, I : Index> Send for Slab<T, I> where T: Send {}
 
 macro_rules! some {
@@ -52,7 +50,7 @@ impl<T, I : Index> Slab<T, I> {
     }
 
     pub fn new_starting_at(offset: I, cap: usize) -> Slab<T, I> {
-        assert!(cap <= MAX, "capacity too large");
+        assert!(cap <= usize::MAX, "capacity too large");
         // TODO:
         // - Rename to with_capacity
         // - Use a power of 2 capacity
@@ -108,10 +106,8 @@ impl<T, I : Index> Slab<T, I> {
     pub fn get(&self, idx: I) -> Option<&T> {
         let idx = some!(self.global_to_local_idx(idx));
 
-        if idx <= MAX {
-            if idx < self.entries.len() {
-                return self.entries[idx].val.as_ref();
-            }
+        if idx < self.entries.len() {
+            return self.entries[idx].val.as_ref();
         }
 
         None
@@ -120,10 +116,8 @@ impl<T, I : Index> Slab<T, I> {
     pub fn get_mut(&mut self, idx: I) -> Option<&mut T> {
         let idx = some!(self.global_to_local_idx(idx));
 
-        if idx <= MAX {
-            if idx < self.entries.len() {
-                return self.entries[idx].val.as_mut();
-            }
+        if idx < self.entries.len() {
+            return self.entries[idx].val.as_mut();
         }
 
         None
@@ -186,12 +180,11 @@ impl<T, I : Index> Slab<T, I> {
             return None;
         }
 
-        if idx <= MAX {
-            if idx < self.entries.len() {
-                let val = self.entries[idx].val.as_mut().unwrap();
-                return Some(mem::replace(val, t))
-            }
+        if idx < self.entries.len() {
+            let val = self.entries[idx].val.as_mut().unwrap();
+            return Some(mem::replace(val, t))
         }
+
         None
     }
 
