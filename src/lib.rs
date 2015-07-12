@@ -5,7 +5,7 @@ use std::ops;
 /// A preallocated chunk of memory for storing objects of the same type.
 pub struct Slab<T, I: Index> {
     // Chunk of memory
-    entries: Vec<Entry<T>>,
+    entries: Box<[Entry<T>]>,
     // Number of elements currently in the slab
     len: usize,
     // The index offset
@@ -58,7 +58,10 @@ impl<T, I : Index> Slab<T, I> {
         // - Use a power of 2 capacity
         // - Ensure that mem size is less than usize::MAX
 
-        let entries = Vec::with_capacity(cap);
+        let entries = (1..(cap+1))
+                .map(Entry::Empty)
+                .collect::<Vec<_>>()
+                .into_boxed_slice();
 
         Slab {
             entries: entries,
@@ -80,7 +83,7 @@ impl<T, I : Index> Slab<T, I> {
 
     #[inline]
     pub fn remaining(&self) -> usize {
-        (self.entries.capacity() - self.len) as usize
+        (self.entries.len() - self.len) as usize
     }
 
     #[inline]
@@ -130,7 +133,7 @@ impl<T, I : Index> Slab<T, I> {
         let idx = self.nxt;
         // check fail condition before val gets moved by insert_with,
         // so `Err(val)` can be returned
-        if idx == self.entries.capacity() {
+        if idx == self.entries.len() {
             Err(val)
         } else {
             match self.insert_with(move |_| val ) {
@@ -147,26 +150,13 @@ impl<T, I : Index> Slab<T, I> {
         let idx = self.nxt;
 
         if idx == self.entries.len() {
-            // Using an uninitialized entry
-            if idx == self.entries.capacity() {
-                // No more capacity
-                return None;
-            }
-
-            let val = f(self.local_to_global_idx(idx));
-            self.entries.push(Entry {
-                nxt: MAX,
-                val: Some(val),
-            });
-
-            self.len += 1;
-            self.nxt = self.len;
+            // No more capacity
+            return None;
         }
-        else {
-            let val = f(self.local_to_global_idx(idx));
-            self.len += 1;
-            self.nxt = self.entries[idx].put(val);
-        }
+
+        let val = f(self.local_to_global_idx(idx));
+        self.len += 1;
+        self.nxt = self.entries[idx].put(val);
 
         Some(self.local_to_global_idx(idx))
     }
@@ -224,7 +214,7 @@ impl<T, I : Index> Slab<T, I> {
             return idx;
         }
 
-        panic!("invalid index {} -- greater than capacity {}", idx, self.entries.capacity());
+        panic!("invalid index {} -- greater than capacity {}", idx, self.entries.len());
     }
 
     fn global_to_local_idx(&self, idx: I) -> Option<usize> {
@@ -267,7 +257,7 @@ impl<T, I : Index> ops::IndexMut<I> for Slab<T, I> {
 
 impl<T, I : Index> fmt::Debug for Slab<T, I> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Slab {{ len: {}, cap: {} }}", self.len, self.entries.capacity())
+        write!(fmt, "Slab {{ len: {}, cap: {} }}", self.len, self.entries.len())
     }
 }
 
