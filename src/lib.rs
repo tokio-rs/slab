@@ -175,7 +175,7 @@ impl<T, I : Index> Slab<T, I> {
     pub fn remove(&mut self, idx: I) -> Option<T> {
         let idx = some!(self.global_to_local_idx(idx));
 
-        if idx > self.entries.len() {
+        if idx >= self.entries.len() {
             return None;
         }
 
@@ -403,6 +403,13 @@ mod tests {
         let mut slab = Slab::<usize, usize>::new(1);
         slab.insert(10).ok().expect("Failed to insert");
         slab.insert(10).err().expect("Inserted into a full slab");
+    }
+
+    #[test]
+    fn test_removal_at_boundries() {
+        let mut slab = Slab::<usize, usize>::new(1);
+        assert_eq!(slab.remove(0), None);
+        assert_eq!(slab.remove(1), None);
     }
 
     #[test]
