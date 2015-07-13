@@ -107,7 +107,7 @@ impl<T, I : Index> Slab<T, I> {
         let idx = some!(self.global_to_local_idx(idx));
 
         if idx < self.entries.len() {
-            return self.entries[idx].val.as_ref();
+            return self.entries[idx].as_ref();
         }
 
         None
@@ -117,7 +117,7 @@ impl<T, I : Index> Slab<T, I> {
         let idx = some!(self.global_to_local_idx(idx));
 
         if idx < self.entries.len() {
-            return self.entries[idx].val.as_mut();
+            return self.entries[idx].as_mut();
         }
 
         None
@@ -181,7 +181,7 @@ impl<T, I : Index> Slab<T, I> {
         }
 
         if idx < self.entries.len() {
-            let val = self.entries[idx].val.as_mut().unwrap();
+            let val = self.entries[idx].as_mut().unwrap();
             return Some(mem::replace(val, t))
         }
 
@@ -233,7 +233,7 @@ impl<T, I : Index> ops::Index<I> for Slab<T, I> {
         let idx = self.global_to_local_idx(idx).expect("invalid index");
         let idx = self.validate_idx(idx);
 
-        self.entries[idx].val.as_ref()
+        self.entries[idx].as_ref()
             .expect("invalid index")
     }
 }
@@ -243,7 +243,7 @@ impl<T, I : Index> ops::IndexMut<I> for Slab<T, I> {
         let idx = self.global_to_local_idx(idx).expect("invalid index");
         let idx = self.validate_idx(idx);
 
-        self.entries[idx].val.as_mut()
+        self.entries[idx].as_mut()
             .expect("invalid index")
     }
 }
@@ -255,31 +255,57 @@ impl<T, I : Index> fmt::Debug for Slab<T, I> {
 }
 
 // Holds the values in the slab.
-struct Entry<T> {
-    nxt: usize,
-    val: Option<T>,
+// When Empty, it holds the index of another Empty slot
+// When Filled, it holds the slab's value
+enum Entry<T> {
+    Empty(usize),
+    Filled(T),
 }
 
 impl<T> Entry<T> {
     #[inline]
-    fn put(&mut self, val: T) -> usize {
-        let ret = self.nxt;
-        self.val = Some(val);
-        ret
+    fn as_mut(&mut self) -> Option<&mut T> {
+        match *self {
+            Entry::Filled(ref mut val) => Some(val),
+            Entry::Empty(_) => None,
+        } 
+    }
+    #[inline]
+    fn as_ref(&self) -> Option<&T> {
+        match *self {
+            Entry::Filled(ref val) => Some(val),
+            Entry::Empty(_) => None,
+        } 
     }
 
+    #[inline]
+    fn put(&mut self, val: T) -> usize {
+        match *self {
+            Entry::Empty(nxt) => {
+                mem::replace(self, Entry::Filled(val));
+                nxt
+            },
+            Entry::Filled(_) => panic!("Should not happen"),
+        } 
+    }
+
+    #[inline]
     fn remove(&mut self, nxt: usize) -> Option<T> {
         if self.in_use() {
-            self.nxt = nxt;
-            self.val.take()
-        } else {
-            None
+            return match mem::replace(self, Entry::Empty(nxt)) {
+                Entry::Filled(val) => Some(val),
+                Entry::Empty(_) => unreachable!(),
+            }
         }
+        None
     }
 
     #[inline]
     fn in_use(&self) -> bool {
-        self.val.is_some()
+        match *self {
+            Entry::Filled(_) => true,
+            Entry::Empty(_) => false,
+        }
     }
 }
 
@@ -294,7 +320,7 @@ impl<'a, T, I : Index> Iterator for SlabIter<'a, T, I> {
 
     fn next(&mut self) -> Option<&'a T> {
         while self.yielded < self.slab.len {
-            match self.slab.entries[self.cur_idx].val {
+            match self.slab.entries[self.cur_idx].as_ref() {
                 Some(ref v) => {
                     self.cur_idx += 1;
                     self.yielded += 1;
