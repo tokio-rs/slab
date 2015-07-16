@@ -188,6 +188,36 @@ impl<T, I : Index> Slab<T, I> {
         None
     }
 
+    /// Execute a function on the *value* in the slot and put the result of
+    /// the function back into the slot. If function returns None,
+    /// slot is left empty on exit.
+    ///
+    /// Returns Err(()) if slot was empty
+    ///
+    /// This method is very useful for storing state machines inside Slab
+    pub fn replace_with<F>(&mut self, idx: I, fun: F)
+        -> Result<(), ()>
+        where F: FnOnce(T) -> Option<T>
+    {
+        // In current implementation we can just remove the element and insert
+        // it again, but this guarantee is not documented
+        let idx_raw = idx.as_usize();
+        if let Some(val) = self.remove(idx) {
+            match fun(val) {
+                Some(newval) => {
+                    let nidx = self.insert(newval)
+                        .ok().expect("We have just deleted");
+                    // .. so we just assert that this guarantee is still ok
+                    debug_assert!(idx_raw == nidx.as_usize());
+                    Ok(())
+                }
+                None => Ok(()),
+            }
+        } else {
+            Err(())
+        }
+    }
+
 
     pub fn iter(&self) -> SlabIter<T, I> {
         SlabIter {
@@ -268,14 +298,14 @@ impl<T> Entry<T> {
         match *self {
             Entry::Filled(ref mut val) => Some(val),
             Entry::Empty(_) => None,
-        } 
+        }
     }
     #[inline]
     fn as_ref(&self) -> Option<&T> {
         match *self {
             Entry::Filled(ref val) => Some(val),
             Entry::Empty(_) => None,
-        } 
+        }
     }
 
     #[inline]
@@ -286,7 +316,7 @@ impl<T> Entry<T> {
                 nxt
             },
             Entry::Filled(_) => panic!("Should not happen"),
-        } 
+        }
     }
 
     #[inline]
@@ -563,6 +593,15 @@ mod tests {
         assert_eq!(slab[tok], 12);
         assert_eq!(slab.get_mut(1), None);
         assert_eq!(slab.get_mut(23), None);
+    }
+
+    #[test]
+    fn test_replace_with() {
+        let mut slab = Slab::<u32, usize>::new(16);
+        let tok = slab.insert(5u32).unwrap();
+        assert!(slab.replace_with(tok, |x| Some(x+1)).is_ok());
+        assert!(slab.replace_with(tok+1, |x| Some(x+1)).is_err());
+        assert_eq!(slab[tok], 6);
     }
 
     #[test]
