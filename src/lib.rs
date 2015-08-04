@@ -43,6 +43,34 @@ macro_rules! some {
     })
 }
 
+pub struct ReservedEntry<'a, T: 'a, I: 'a + Index> {
+    key: I,
+    slab: &'a mut Slab<T, I>,
+}
+
+impl<'a, T, I: Index> ReservedEntry<'a, T, I> {
+    pub fn insert(self, val: T) {
+        self.slab.replace(&self.key, val);
+    }
+
+    pub fn get_key(&self) -> &I {
+        &self.key
+    }
+}
+
+impl<'a, T, I: Index> Drop for ReservedEntry<'a, T, I> {
+    fn drop(&mut self) {
+        if let Some(idx) = self.slab.global_to_local_idx(&self.key) {
+            match self.slab.entries[idx] {
+                Entry::Filled(_) => (),
+                Entry::Empty(_) => if idx < self.slab.entries.len() {
+                    assert!(self.slab.entries[idx].remove(self.slab.nxt).is_none())
+                },
+            }
+        }
+    }
+}
+
 // TODO: Once NonZero lands, use it to optimize the layout
 impl<T, I : Index> Slab<T, I> {
     pub fn new(cap: usize) -> Slab<T, I> {
@@ -91,7 +119,7 @@ impl<T, I : Index> Slab<T, I> {
 
     #[inline]
     pub fn contains(&self, idx : I) -> bool {
-        let idx = match self.global_to_local_idx(idx) {
+        let idx = match self.global_to_local_idx(&idx) {
             Some(idx) => idx,
             None => return false,
         };
@@ -104,7 +132,7 @@ impl<T, I : Index> Slab<T, I> {
     }
 
     pub fn get(&self, idx: I) -> Option<&T> {
-        let idx = some!(self.global_to_local_idx(idx));
+        let idx = some!(self.global_to_local_idx(&idx));
 
         if idx < self.entries.len() {
             return self.entries[idx].as_ref();
@@ -114,7 +142,7 @@ impl<T, I : Index> Slab<T, I> {
     }
 
     pub fn get_mut(&mut self, idx: I) -> Option<&mut T> {
-        let idx = some!(self.global_to_local_idx(idx));
+        let idx = some!(self.global_to_local_idx(&idx));
 
         if idx < self.entries.len() {
             return self.entries[idx].as_mut();
@@ -155,9 +183,30 @@ impl<T, I : Index> Slab<T, I> {
         Some(self.local_to_global_idx(idx))
     }
 
+    /// Prepare for an insert, reserving the Index for
+    /// use without requiring that it is used
+    pub fn reserve_token(&mut self) -> Option<ReservedEntry<T, I>> {
+        let idx = self.nxt;
+
+        if idx == self.entries.len() {
+            // No more capacity
+            return None;
+        }
+
+        self.len += 1;
+        match self.entries[idx] {
+            Entry::Empty(nxt) => self.nxt = nxt,
+            Entry::Filled(_) => panic!("Should not happen"),
+        }
+        Some(ReservedEntry {
+            key: self.local_to_global_idx(idx),
+            slab: self,
+        })
+    }
+
     /// Releases the given slot
     pub fn remove(&mut self, idx: I) -> Option<T> {
-        let idx = some!(self.global_to_local_idx(idx));
+        let idx = some!(self.global_to_local_idx(&idx));
 
         if idx >= self.entries.len() {
             return None;
@@ -173,7 +222,7 @@ impl<T, I : Index> Slab<T, I> {
         }
     }
 
-    pub fn replace(&mut self, idx: I, t : T) -> Option<T> {
+    pub fn replace(&mut self, idx: &I, t : T) -> Option<T> {
         let idx = some!(self.global_to_local_idx(idx));
 
         if idx > self.entries.len() {
@@ -240,7 +289,7 @@ impl<T, I : Index> Slab<T, I> {
         panic!("invalid index {} -- greater than capacity {}", idx, self.entries.len());
     }
 
-    fn global_to_local_idx(&self, idx: I) -> Option<usize> {
+    fn global_to_local_idx(&self, idx: &I) -> Option<usize> {
         let idx = idx.as_usize();
         let off = self.off.as_usize();
 
@@ -260,7 +309,7 @@ impl<T, I : Index> ops::Index<I> for Slab<T, I> {
     type Output = T;
 
     fn index<'a>(&'a self, idx: I) -> &'a T {
-        let idx = self.global_to_local_idx(idx).expect("invalid index");
+        let idx = self.global_to_local_idx(&idx).expect("invalid index");
         let idx = self.validate_idx(idx);
 
         self.entries[idx].as_ref()
@@ -270,7 +319,7 @@ impl<T, I : Index> ops::Index<I> for Slab<T, I> {
 
 impl<T, I : Index> ops::IndexMut<I> for Slab<T, I> {
     fn index_mut<'a>(&'a mut self, idx: I) -> &'a mut T {
-        let idx = self.global_to_local_idx(idx).expect("invalid index");
+        let idx = self.global_to_local_idx(&idx).expect("invalid index");
         let idx = self.validate_idx(idx);
 
         self.entries[idx].as_mut()
@@ -321,13 +370,10 @@ impl<T> Entry<T> {
 
     #[inline]
     fn remove(&mut self, nxt: usize) -> Option<T> {
-        if self.in_use() {
-            return match mem::replace(self, Entry::Empty(nxt)) {
-                Entry::Filled(val) => Some(val),
-                Entry::Empty(_) => unreachable!(),
-            }
+        match mem::replace(self, Entry::Empty(nxt)) {
+            Entry::Filled(val) => Some(val),
+            Entry::Empty(_) => None
         }
-        None
     }
 
     #[inline]
