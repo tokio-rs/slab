@@ -71,7 +71,7 @@ impl<T, I : Index> Slab<T, I> {
 
     #[inline]
     pub fn count(&self) -> usize {
-        self.len as usize
+        self.len
     }
 
     #[inline]
@@ -81,7 +81,7 @@ impl<T, I : Index> Slab<T, I> {
 
     #[inline]
     pub fn remaining(&self) -> usize {
-        (self.entries.len() - self.len) as usize
+        self.entries.len() - self.len
     }
 
     #[inline]
