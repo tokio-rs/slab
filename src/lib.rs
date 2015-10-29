@@ -1,31 +1,52 @@
 use std::{fmt, mem, usize};
 use std::iter::IntoIterator;
 use std::ops;
+use std::marker::PhantomData;
 
 /// A preallocated chunk of memory for storing objects of the same type.
 pub struct Slab<T, I: Index> {
     // Chunk of memory
-    entries: Box<[Entry<T>]>,
-    // Number of elements currently in the slab
+    entries: Vec<Entry<T>>,
+
+    // Number of Filled elements currently in the slab
     len: usize,
+
     // The index offset
-    off: I,
+    offset: usize,
+
     // Offset of the next available slot in the slab. Set to the slab's
     // capacity when the slab is full.
-    nxt: usize,
+    next: usize,
+
+    _marker: PhantomData<I>,
+}
+
+enum Entry<T> {
+    Empty(usize),
+    Filled(T),
+}
+
+// Need this for Rust 1.0 compatibility
+// See: https://github.com/rust-lang/rust/issues/15609
+impl<T> Entry<T> {
+    #[inline]
+    fn as_mut(&mut self) -> Option<&mut T> {
+        match *self {
+            Entry::Filled(ref mut val) => Some(val),
+            Entry::Empty(_) => None,
+        }
+    }
 }
 
 /// Slab can be indexed by any type implementing `Index` trait.
 pub trait Index {
-    /// Return a `usize` representation of the index
-    fn from_usize(i : usize) -> Self;
+    fn from_usize(i: usize) -> Self;
 
-    /// Returns an `Index` based on the `usize` representation
     fn as_usize(&self) -> usize;
 }
 
 impl Index for usize {
-    fn from_usize(i : usize) -> usize {
+    fn from_usize(i: usize) -> usize {
         i
     }
 
@@ -43,29 +64,23 @@ macro_rules! some {
     })
 }
 
-// TODO: Once NonZero lands, use it to optimize the layout
-impl<T, I : Index> Slab<T, I> {
-    pub fn new(cap: usize) -> Slab<T, I> {
-        Slab::new_starting_at(I::from_usize(0), cap)
+impl<T, I: Index> Slab<T, I> {
+    pub fn new(capacity: usize) -> Slab<T, I> {
+        Slab::new_starting_at(I::from_usize(0), capacity)
     }
 
-    pub fn new_starting_at(offset: I, cap: usize) -> Slab<T, I> {
-        assert!(cap <= usize::MAX, "capacity too large");
-        // TODO:
-        // - Rename to with_capacity
-        // - Use a power of 2 capacity
-        // - Ensure that mem size is less than usize::MAX
-
-        let entries = (1..(cap+1))
-                .map(Entry::Empty)
-                .collect::<Vec<_>>()
-                .into_boxed_slice();
+    pub fn new_starting_at(offset: I, capacity: usize) -> Slab<T, I> {
+        assert!(capacity <= usize::MAX, "capacity too large");
+        let entries = (1..capacity+1)
+            .map(Entry::Empty)
+            .collect::<Vec<_>>();
 
         Slab {
             entries: entries,
+            next: 0,
             len: 0,
-            off: offset,
-            nxt: 0,
+            offset: offset.as_usize(),
+            _marker: PhantomData,
         }
     }
 
@@ -81,7 +96,7 @@ impl<T, I : Index> Slab<T, I> {
 
     #[inline]
     pub fn remaining(&self) -> usize {
-        self.entries.len() - self.len
+        self.entries.capacity() - self.len
     }
 
     #[inline]
@@ -90,102 +105,67 @@ impl<T, I : Index> Slab<T, I> {
     }
 
     #[inline]
-    pub fn contains(&self, idx : I) -> bool {
-        let idx = match self.global_to_local_idx(idx) {
-            Some(idx) => idx,
-            None => return false,
-        };
-
-        if idx < self.entries.len() {
-            return self.entries[idx].in_use();
+    pub fn contains(&self, idx: I) -> bool {
+        match self.get(idx) {
+            Some(_) => true,
+            None => false
         }
-
-        false
     }
 
     pub fn get(&self, idx: I) -> Option<&T> {
-        let idx = some!(self.global_to_local_idx(idx));
+        let idx = some!(self.local_index(idx));
 
-        if idx < self.entries.len() {
-            return self.entries[idx].as_ref();
+        match self.entries[idx] {
+            Entry::Filled(ref val) => Some(val),
+            Entry::Empty(_) => None,
         }
-
-        None
     }
 
     pub fn get_mut(&mut self, idx: I) -> Option<&mut T> {
-        let idx = some!(self.global_to_local_idx(idx));
+        let idx = some!(self.local_index(idx));
 
-        if idx < self.entries.len() {
-            return self.entries[idx].as_mut();
-        }
-
-        None
+        return self.entries[idx].as_mut();
     }
 
     pub fn insert(&mut self, val: T) -> Result<I, T> {
-        let idx = self.nxt;
         // check fail condition before val gets moved by insert_with,
         // so `Err(val)` can be returned
-        if idx == self.entries.len() {
-            Err(val)
-        } else {
-            match self.insert_with(move |_| val ) {
-                None => panic!("Slab::insert_with() should"),
-                Some(idx) => Ok(idx)
-            }
+        if self.next >= self.entries.capacity() {
+            return Err(val);
+        }
+
+        match self.insert_with(move |_| val ) {
+            None => panic!("Slab::insert_with() should"),
+            Some(idx) => Ok(idx)
         }
     }
 
     /// Like `insert` but for objects that require newly allocated
     /// usize in their constructor.
-    pub fn insert_with<F>(&mut self, f : F) -> Option<I>
-    where F : FnOnce(I) -> T {
-        let idx = self.nxt;
-
-        if idx == self.entries.len() {
-            // No more capacity
+    pub fn insert_with<F>(&mut self, fun: F) -> Option<I> where F : FnOnce(I) -> T {
+        let idx = self.next;
+        if idx >= self.entries.capacity() {
             return None;
         }
 
-        let val = f(self.local_to_global_idx(idx));
-        self.len += 1;
-        self.nxt = self.entries[idx].put(val);
+        self.next = match self.entries[idx] {
+            Entry::Empty(next) => next,
+            Entry::Filled(_) => panic!("Tried to insert into filled index")
+        };
 
-        Some(self.local_to_global_idx(idx))
+        self.entries[idx] = Entry::Filled(fun(I::from_usize(idx + self.offset)));
+        self.len += 1;
+        Some(I::from_usize(idx + self.offset))
     }
 
     /// Releases the given slot
     pub fn remove(&mut self, idx: I) -> Option<T> {
-        let idx = some!(self.global_to_local_idx(idx));
-
-        if idx >= self.entries.len() {
-            return None;
-        }
-
-        match self.entries[idx].remove(self.nxt) {
-            Some(v) => {
-                self.nxt = idx;
-                self.len -= 1;
-                Some(v)
-            }
-            None => None
-        }
+        let next = self.next;
+        self.replace_(idx, Entry::Empty(next))
     }
 
     pub fn replace(&mut self, idx: I, t : T) -> Option<T> {
-        let idx = some!(self.global_to_local_idx(idx));
-
-        if idx > self.entries.len() {
-            return None;
-        }
-
-        if idx < self.entries.len() {
-            let val = self.entries[idx].as_mut().unwrap();
-            return Some(mem::replace(val, t))
-        }
-
-        None
+        self.replace_(idx, Entry::Filled(t))
     }
 
     /// Execute a function on the *value* in the slot and put the result of
@@ -195,34 +175,32 @@ impl<T, I : Index> Slab<T, I> {
     /// Returns Err(()) if slot was empty
     ///
     /// This method is very useful for storing state machines inside Slab
-    pub fn replace_with<F>(&mut self, idx: I, fun: F)
-        -> Result<(), ()>
-        where F: FnOnce(T) -> Option<T>
-    {
-        // In current implementation we can just remove the element and insert
-        // it again, but this guarantee is not documented
-        let idx_raw = idx.as_usize();
-        if let Some(val) = self.remove(idx) {
-            match fun(val) {
-                Some(newval) => {
-                    let nidx = self.insert(newval)
-                        .ok().expect("We have just deleted");
-                    // .. so we just assert that this guarantee is still ok
-                    debug_assert!(idx_raw == nidx.as_usize());
-                    Ok(())
-                }
-                None => Ok(()),
-            }
-        } else {
-            Err(())
-        }
-    }
+    pub fn replace_with<F>(&mut self, idx: I, fun: F) -> Result<(), ()>
+        where F: FnOnce(T) -> Option<T> {
 
+            let raw_idx = idx.as_usize();
+
+            // In current implementation we can just remove the element and insert
+            // it again, but this guarantee is not documented
+            if let Some(val) = self.remove(idx) {
+                match fun(val) {
+                    Some(newval) => {
+                        let new_idx = self.insert(newval).ok().expect("We just deleted");
+                        // ... so we just assert that this guarantee is still ok
+                        debug_assert!(raw_idx == new_idx.as_usize());
+                        Ok(())
+                    },
+                    None => Ok(())
+                }
+            } else {
+                Err(())
+            }
+        }
 
     pub fn iter(&self) -> SlabIter<T, I> {
         SlabIter {
             slab: self,
-            cur_idx: 0,
+            cur_idx: self.offset,
             yielded: 0
         }
     }
@@ -231,111 +209,54 @@ impl<T, I : Index> Slab<T, I> {
         SlabMutIter { iter: self.iter() }
     }
 
-    #[inline]
-    fn validate_idx(&self, idx: usize) -> usize {
-        if idx < self.entries.len() {
-            return idx;
-        }
-
-        panic!("invalid index {} -- greater than capacity {}", idx, self.entries.len());
-    }
-
-    fn global_to_local_idx(&self, idx: I) -> Option<usize> {
+    fn local_index(&self, idx: I) -> Option<usize> {
         let idx = idx.as_usize();
-        let off = self.off.as_usize();
 
-        if idx < off {
+        if idx < self.offset {
             return None;
         }
 
-        Some(idx.as_usize() - self.off.as_usize())
+        let idx = idx - self.offset;
+
+        if idx >= self.entries.capacity() {
+            return None;
+        }
+
+        Some(idx)
     }
 
-    fn local_to_global_idx(&self, idx: usize) -> I {
-        I::from_usize(idx + self.off.as_usize())
+    #[inline]
+    fn replace_(&mut self, idx: I, e: Entry<T>) -> Option<T> {
+        let idx = some!(self.local_index(idx));
+
+        if let Entry::Filled(val) = mem::replace(&mut self.entries[idx], e) {
+            self.next = idx;
+            self.len -= 1;
+            return Some(val);
+        }
+
+        None
     }
+
 }
 
-impl<T, I : Index> ops::Index<I> for Slab<T, I> {
+impl<T, I: Index> ops::Index<I> for Slab<T, I> {
     type Output = T;
 
-    fn index<'a>(&'a self, idx: I) -> &'a T {
-        let idx = self.global_to_local_idx(idx).expect("invalid index");
-        let idx = self.validate_idx(idx);
-
-        self.entries[idx].as_ref()
-            .expect("invalid index")
+    fn index(&self, index: I) -> &T {
+        self.get(index).expect("invalid index")
     }
 }
 
-impl<T, I : Index> ops::IndexMut<I> for Slab<T, I> {
-    fn index_mut<'a>(&'a mut self, idx: I) -> &'a mut T {
-        let idx = self.global_to_local_idx(idx).expect("invalid index");
-        let idx = self.validate_idx(idx);
-
-        self.entries[idx].as_mut()
-            .expect("invalid index")
+impl<T, I: Index> ops::IndexMut<I> for Slab<T, I> {
+    fn index_mut(&mut self, index: I) -> &mut T {
+        self.get_mut(index).expect("invalid index")
     }
 }
 
 impl<T, I : Index> fmt::Debug for Slab<T, I> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "Slab {{ len: {}, cap: {} }}", self.len, self.entries.len())
-    }
-}
-
-// Holds the values in the slab.
-// When Empty, it holds the index of another Empty slot
-// When Filled, it holds the slab's value
-enum Entry<T> {
-    Empty(usize),
-    Filled(T),
-}
-
-impl<T> Entry<T> {
-    #[inline]
-    fn as_mut(&mut self) -> Option<&mut T> {
-        match *self {
-            Entry::Filled(ref mut val) => Some(val),
-            Entry::Empty(_) => None,
-        }
-    }
-    #[inline]
-    fn as_ref(&self) -> Option<&T> {
-        match *self {
-            Entry::Filled(ref val) => Some(val),
-            Entry::Empty(_) => None,
-        }
-    }
-
-    #[inline]
-    fn put(&mut self, val: T) -> usize {
-        match *self {
-            Entry::Empty(nxt) => {
-                mem::replace(self, Entry::Filled(val));
-                nxt
-            },
-            Entry::Filled(_) => panic!("Should not happen"),
-        }
-    }
-
-    #[inline]
-    fn remove(&mut self, nxt: usize) -> Option<T> {
-        if self.in_use() {
-            return match mem::replace(self, Entry::Empty(nxt)) {
-                Entry::Filled(val) => Some(val),
-                Entry::Empty(_) => unreachable!(),
-            }
-        }
-        None
-    }
-
-    #[inline]
-    fn in_use(&self) -> bool {
-        match *self {
-            Entry::Filled(_) => true,
-            Entry::Empty(_) => false,
-        }
     }
 }
 
@@ -350,13 +271,13 @@ impl<'a, T, I : Index> Iterator for SlabIter<'a, T, I> {
 
     fn next(&mut self) -> Option<&'a T> {
         while self.yielded < self.slab.len {
-            match self.slab.entries[self.cur_idx].as_ref() {
-                Some(ref v) => {
+            match self.slab.entries[self.cur_idx] {
+                Entry::Filled(ref v) => {
                     self.cur_idx += 1;
                     self.yielded += 1;
                     return Some(v);
                 }
-                None => {
+                Entry::Empty(_) => {
                     self.cur_idx += 1;
                 }
             }
@@ -400,19 +321,56 @@ impl<'a, T, I : Index> IntoIterator for &'a mut Slab<T, I> {
 mod tests {
     use super::Slab;
 
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct MyIndex(pub usize);
+
+    impl super::Index for MyIndex {
+        fn from_usize(i: usize) -> MyIndex {
+            MyIndex(i)
+        }
+
+        fn as_usize(&self) -> usize {
+            let MyIndex(inner) = *self;
+            inner
+        }
+    }
+
+    #[test]
+    fn test_index_trait() {
+        let mut slab = Slab::<usize, MyIndex>::new(1);
+        let idx = slab.insert(10).ok().expect("Failed to insert");
+        assert_eq!(idx, MyIndex(0));
+        assert_eq!(slab[idx], 10);
+    }
+
     #[test]
     fn test_insertion() {
         let mut slab = Slab::<usize, usize>::new(1);
+        assert_eq!(slab.is_empty(), true);
+        assert_eq!(slab.has_remaining(), true);
+        assert_eq!(slab.remaining(), 1);
         let idx = slab.insert(10).ok().expect("Failed to insert");
         assert_eq!(slab[idx], 10);
+        assert_eq!(slab.is_empty(), false);
+        assert_eq!(slab.has_remaining(), false);
+        assert_eq!(slab.remaining(), 0);
+    }
+
+    #[test]
+    fn test_insert_with() {
+        let mut slab = Slab::<usize, usize>::new_starting_at(1, 1);
+        let tok = slab.insert_with(|_t| 5).unwrap();
+        assert_eq!(slab.get(0), None);
+        assert_eq!(slab.get_mut(0), None);
+        assert_eq!(tok, 1);
     }
 
     #[test]
     fn test_repeated_insertion() {
         let mut slab = Slab::<usize, usize>::new(10);
 
-        for i in (0..10) {
-            let idx= slab.insert(i + 10).ok().expect("Failed to insert");
+        for i in 0..10 {
+            let idx = slab.insert(i + 10).ok().expect("Failed to insert");
             assert_eq!(slab[idx], i + 10);
         }
 
@@ -535,44 +493,6 @@ mod tests {
     }
 
     #[test]
-    fn test_iter() {
-        let mut slab = Slab::<u32, usize>::new_starting_at(0, 4);
-        for i in (0..4) {
-            slab.insert(i).unwrap();
-        }
-
-        let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
-        assert_eq!(vals, vec![0, 1, 2, 3]);
-
-        slab.remove(1);
-
-        let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
-        assert_eq!(vals, vec![0, 2, 3]);
-    }
-
-    #[test]
-    fn test_iter_mut() {
-        let mut slab = Slab::<u32, usize>::new_starting_at(0, 4);
-        for i in (0..4) {
-            slab.insert(i).unwrap();
-        }
-        for e in slab.iter_mut() {
-            *e = *e + 1;
-        }
-
-        let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
-        assert_eq!(vals, vec![1, 2, 3, 4]);
-
-        slab.remove(2);
-        for e in slab.iter_mut() {
-            *e = *e + 1;
-        }
-
-        let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
-        assert_eq!(vals, vec![2, 3, 5]);
-    }
-
-    #[test]
     fn test_get() {
         let mut slab = Slab::<usize, usize>::new(16);
         let tok = slab.insert(5).unwrap();
@@ -596,6 +516,24 @@ mod tests {
     }
 
     #[test]
+    fn test_index_with_starting_at() {
+        let mut slab = Slab::<usize, usize>::new_starting_at(1, 1);
+        let tok = slab.insert(5).unwrap();
+        assert_eq!(slab.get(0), None);
+        assert_eq!(slab.get_mut(0), None);
+        assert_eq!(tok, 1);
+    }
+
+    #[test]
+    fn test_replace() {
+        let mut slab = Slab::<usize, usize>::new(16);
+        let tok = slab.insert(5).unwrap();
+        assert!(slab.replace(tok, 6).is_some());
+        assert!(slab.replace(tok+1, 555).is_none());
+        assert_eq!(slab[tok], 6);
+    }
+
+    #[test]
     fn test_replace_with() {
         let mut slab = Slab::<u32, usize>::new(16);
         let tok = slab.insert(5u32).unwrap();
@@ -605,8 +543,40 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_index_with_starting_at() {
-        let slab = Slab::<u32, usize>::new_starting_at(1, 1);
-        assert_eq!(slab.get(0), None);
+    fn test_iter() {
+        let mut slab = Slab::<u32, usize>::new_starting_at(0, 4);
+        for i in 0..4 {
+            slab.insert(i).unwrap();
+        }
+
+        let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
+        assert_eq!(vals, vec![0, 1, 2, 3]);
+
+        slab.remove(1);
+
+        let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
+        assert_eq!(vals, vec![0, 2, 3]);
+    }
+
+    #[test]
+    fn test_iter_mut() {
+        let mut slab = Slab::<u32, usize>::new_starting_at(0, 4);
+        for i in 0..4 {
+            slab.insert(i).unwrap();
+        }
+        for e in slab.iter_mut() {
+            *e = *e + 1;
+        }
+
+        let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
+        assert_eq!(vals, vec![1, 2, 3, 4]);
+
+        slab.remove(2);
+        for e in slab.iter_mut() {
+            *e = *e + 1;
+        }
+
+        let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
+        assert_eq!(vals, vec![2, 3, 5]);
     }
 }
