@@ -97,7 +97,7 @@ impl<T, I : Index> Slab<T, I> {
         };
 
         if idx < self.entries.len() {
-            return self.entries[idx].in_use();
+            return self.entries[idx].is_filled();
         }
 
         false
@@ -173,51 +173,70 @@ impl<T, I : Index> Slab<T, I> {
         }
     }
 
-    pub fn replace(&mut self, idx: I, t : T) -> Option<T> {
-        let idx = some!(self.global_to_local_idx(idx));
+    pub fn replace(&mut self, idx: I, t : T) -> Result<T, T> {
+        let idx = match self.global_to_local_idx(idx) {
+            Some(idx) => idx,
+            None => return Err(t)
+        };
 
         if idx > self.entries.len() {
-            return None;
+            return Err(t);
         }
 
         if idx < self.entries.len() {
-            let val = self.entries[idx].as_mut().unwrap();
-            return Some(mem::replace(val, t))
+            return match self.entries[idx].as_mut() {
+                Some(val) => Ok(mem::replace(val, t)),
+                None => Err(t)
+            }
         }
 
-        None
+        Err(t)
     }
+
 
     /// Execute a function on the *value* in the slot and put the result of
     /// the function back into the slot. If function returns None,
     /// slot is left empty on exit.
+    ///
+    /// A mutable reference to the slab is provided to the closure.
     ///
     /// Returns Err(()) if slot was empty
     ///
     /// This method is very useful for storing state machines inside Slab
     pub fn replace_with<F>(&mut self, idx: I, fun: F)
         -> Result<(), ()>
-        where F: FnOnce(T) -> Option<T>
+        where F: FnOnce(T, &mut Slab<T, I>) -> Option<T>
     {
-        // In current implementation we can just remove the element and insert
-        // it again, but this guarantee is not documented
-        let idx_raw = idx.as_usize();
-        if let Some(val) = self.remove(idx) {
-            match fun(val) {
+        let idx = try!(self.global_to_local_idx(idx).ok_or(()));
+
+        if idx > self.entries.len() {
+            return Err(());
+        }
+
+        if let Some(val) = self.entries[idx].start_replace() {
+            let ret = {
+                let mut panic_guard = ReplacePanicGuard {
+                    slab: self,
+                    replace_idx: Some(idx)
+                };
+                panic_guard.run(fun, val)
+            };
+            match ret {
                 Some(newval) => {
-                    let nidx = self.insert(newval)
-                        .ok().expect("We have just deleted");
-                    // .. so we just assert that this guarantee is still ok
-                    debug_assert!(idx_raw == nidx.as_usize());
+                    self.entries[idx].end_replace(Ok(newval));
+                    Ok(())
+                },
+                None => {
+                    self.entries[idx].end_replace(Err(self.nxt));
+                    self.nxt = idx;
+                    self.len -= 1;
                     Ok(())
                 }
-                None => Ok(()),
             }
         } else {
             Err(())
         }
     }
-
 
     pub fn iter(&self) -> SlabIter<T, I> {
         SlabIter {
@@ -284,12 +303,39 @@ impl<T, I : Index> fmt::Debug for Slab<T, I> {
     }
 }
 
+// Panic guard to prevent data corruption if replace_with panics.
+struct ReplacePanicGuard<'a, T: 'a, I : 'a + Index> {
+    slab: &'a mut Slab<T, I>,
+    replace_idx: Option<usize>
+}
+
+impl<'a, T: 'a, I : 'a + Index> ReplacePanicGuard<'a, T, I> {
+    fn run<F>(&mut self, fun: F, val: T) -> Option<T>
+        where F: FnOnce(T, &mut Slab<T, I>) -> Option<T>
+    {
+        let ret = fun(val, self.slab);
+        self.replace_idx.take();
+        ret
+    }
+}
+
+impl<'a, T: 'a, I : 'a + Index> Drop for ReplacePanicGuard<'a, T, I> {
+    fn drop(&mut self) {
+        if let Some(idx) = self.replace_idx {
+            self.slab.entries[idx].end_replace(Err(self.slab.nxt));
+            self.slab.nxt = idx;
+            self.slab.len -= 1;
+        }
+    }
+}
+
 // Holds the values in the slab.
 // When Empty, it holds the index of another Empty slot
 // When Filled, it holds the slab's value
 enum Entry<T> {
     Empty(usize),
     Filled(T),
+    ReplaceInProgress
 }
 
 impl<T> Entry<T> {
@@ -297,14 +343,16 @@ impl<T> Entry<T> {
     fn as_mut(&mut self) -> Option<&mut T> {
         match *self {
             Entry::Filled(ref mut val) => Some(val),
-            Entry::Empty(_) => None,
+            Entry::Empty(_) |
+            Entry::ReplaceInProgress => None,
         }
     }
     #[inline]
     fn as_ref(&self) -> Option<&T> {
         match *self {
             Entry::Filled(ref val) => Some(val),
-            Entry::Empty(_) => None,
+            Entry::Empty(_) |
+            Entry::ReplaceInProgress => None,
         }
     }
 
@@ -315,26 +363,57 @@ impl<T> Entry<T> {
                 mem::replace(self, Entry::Filled(val));
                 nxt
             },
-            Entry::Filled(_) => panic!("Should not happen"),
+            Entry::Filled(_) |
+            Entry::ReplaceInProgress => panic!("Should not happen"),
         }
     }
 
     #[inline]
     fn remove(&mut self, nxt: usize) -> Option<T> {
-        if self.in_use() {
+        if self.is_filled() {
             return match mem::replace(self, Entry::Empty(nxt)) {
                 Entry::Filled(val) => Some(val),
-                Entry::Empty(_) => unreachable!(),
+                Entry::Empty(_) |
+                Entry::ReplaceInProgress => unreachable!(),
             }
         }
         None
     }
 
     #[inline]
-    fn in_use(&self) -> bool {
+    fn start_replace(&mut self) -> Option<T> {
+        if self.is_filled() {
+            return match mem::replace(self, Entry::ReplaceInProgress) {
+                Entry::Filled(val) => Some(val),
+                Entry::Empty(_) |
+                Entry::ReplaceInProgress => unreachable!()
+            }
+        }
+        None
+    }
+
+    #[inline]
+    fn end_replace(&mut self, val: Result<T, usize>) {
+        match *self {
+            Entry::ReplaceInProgress => match val {
+                Ok(val) => {
+                    mem::replace(self, Entry::Filled(val));
+                },
+                Err(nxt) => {
+                    mem::replace(self, Entry::Empty(nxt));
+                }
+            },
+            Entry::Filled(_) |
+            Entry::Empty(_) => panic!("Should not happen")
+        }
+    }
+
+    #[inline]
+    fn is_filled(&self) -> bool {
         match *self {
             Entry::Filled(_) => true,
             Entry::Empty(_) => false,
+            Entry::ReplaceInProgress => false,
         }
     }
 }
@@ -596,12 +675,34 @@ mod tests {
     }
 
     #[test]
+    fn test_reused_replace() {
+        let mut slab = Slab::<u32, usize>::new(16);
+        let tok = slab.insert(5u32).unwrap();
+        slab.remove(tok);
+        assert!(slab.replace(tok, 7u32).is_err())
+    }
+
+    #[test]
     fn test_replace_with() {
         let mut slab = Slab::<u32, usize>::new(16);
         let tok = slab.insert(5u32).unwrap();
-        assert!(slab.replace_with(tok, |x| Some(x+1)).is_ok());
-        assert!(slab.replace_with(tok+1, |x| Some(x+1)).is_err());
+        assert!(slab.replace_with(tok, |x, _| Some(x+1)).is_ok());
+        assert!(slab.replace_with(tok+1, |x, _| Some(x+1)).is_err());
         assert_eq!(slab[tok], 6);
+    }
+
+    #[test]
+    fn test_replace_with_mut_slab() {
+        let mut slab = Slab::<u32, usize>::new(16);
+        let tok1 = slab.insert(5u32).unwrap();
+        let tok2 = slab.insert(7u32).unwrap();
+        assert!(slab.replace_with(tok1, |x, slab| {
+            assert!(slab.remove(tok1).is_none());
+            assert!(slab.remove(tok2).is_some());
+            Some(x+1)
+        }).is_ok());
+        assert!(slab.replace_with(tok2+1, |x, _| Some(x+1)).is_err());
+        assert_eq!(slab[tok1], 6);
     }
 
     #[test]
