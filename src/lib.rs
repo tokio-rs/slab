@@ -173,19 +173,24 @@ impl<T, I : Index> Slab<T, I> {
         }
     }
 
-    pub fn replace(&mut self, idx: I, t : T) -> Option<T> {
-        let idx = some!(self.global_to_local_idx(idx));
+    pub fn replace(&mut self, idx: I, t : T) -> Result<T, T> {
+        let idx = match self.global_to_local_idx(idx) {
+            Some(idx) => idx,
+            None => return Err(t)
+        };
 
         if idx > self.entries.len() {
-            return None;
+            return Err(t);
         }
 
         if idx < self.entries.len() {
-            let val = self.entries[idx].as_mut().unwrap();
-            return Some(mem::replace(val, t))
+            return match self.entries[idx].as_mut() {
+                Some(val) => Ok(mem::replace(val, t)),
+                None => Err(t)
+            }
         }
 
-        None
+        Err(t)
     }
 
     /// Execute a function on the *value* in the slot and put the result of
@@ -593,6 +598,14 @@ mod tests {
         assert_eq!(slab[tok], 12);
         assert_eq!(slab.get_mut(1), None);
         assert_eq!(slab.get_mut(23), None);
+    }
+
+    #[test]
+    fn test_reused_replace() {
+        let mut slab = Slab::<u32, usize>::new(16);
+        let tok = slab.insert(5u32).unwrap();
+        slab.remove(tok);
+        assert!(slab.replace(tok, 7u32).is_err())
     }
 
     #[test]
