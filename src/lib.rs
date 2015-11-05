@@ -197,6 +197,25 @@ impl<T, I: Index> Slab<T, I> {
             }
         }
 
+    /// Retain only the elements specified by the predicate.
+    ///
+    /// In other words, remove all elements `e` such that `f(&e)` returns false.
+    /// This method operates in place and preserves the order of the retained
+    /// elements.
+    pub fn retain<F>(&mut self, mut fun: F) where F: FnMut(&T) -> bool {
+        for i in 0..self.len {
+            let idx = I::from_usize(i + self.offset);
+
+            let _ = self.replace_with(idx, |x| {
+                if fun(&x) {
+                    Some(x)
+                } else {
+                    None
+                }
+            });
+        }
+    }
+
     pub fn iter(&self) -> SlabIter<T, I> {
         SlabIter {
             slab: self,
@@ -540,6 +559,17 @@ mod tests {
         assert!(slab.replace_with(tok, |x| Some(x+1)).is_ok());
         assert!(slab.replace_with(tok+1, |x| Some(x+1)).is_err());
         assert_eq!(slab[tok], 6);
+    }
+
+    #[test]
+    fn test_retain() {
+        let mut slab = Slab::<usize, usize>::new(2);
+        let tok1 = slab.insert(0).unwrap();
+        let tok2 = slab.insert(1).unwrap();
+        slab.retain(|x| x % 2 == 0);
+        assert_eq!(slab.count(), 1);
+        assert_eq!(slab[tok1], 0);
+        assert_eq!(slab.contains(tok2), false);
     }
 
     #[test]
