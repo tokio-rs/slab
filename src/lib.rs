@@ -130,12 +130,12 @@ impl<T, I: Index> Slab<T, I> {
     pub fn insert(&mut self, val: T) -> Result<I, T> {
         // check fail condition before val gets moved by insert_with,
         // so `Err(val)` can be returned
-        if self.next >= self.entries.capacity() {
+        if self.next >= self.entries.len() {
             return Err(val);
         }
 
         match self.insert_with(move |_| val ) {
-            None => panic!("Slab::insert_with() should"),
+            None => panic!("Slab::insert_with() should have not failed"),
             Some(idx) => Ok(idx)
         }
     }
@@ -144,7 +144,7 @@ impl<T, I: Index> Slab<T, I> {
     /// usize in their constructor.
     pub fn insert_with<F>(&mut self, fun: F) -> Option<I> where F : FnOnce(I) -> T {
         let idx = self.next;
-        if idx >= self.entries.capacity() {
+        if idx >= self.entries.len() {
             return None;
         }
 
@@ -226,6 +226,26 @@ impl<T, I: Index> Slab<T, I> {
 
     pub fn iter_mut(&mut self) -> SlabMutIter<T, I> {
         SlabMutIter { iter: self.iter() }
+    }
+
+    /// Empty the slab, by freeing all entries
+    pub fn clear(&mut self) {
+        for (i, e) in self.entries.iter_mut().enumerate() {
+            *e = Entry::Empty(i + 1)
+        }
+        self.next = 0;
+        self.len = 0;
+    }
+
+    /// Grow the slab, by adding `entries_num`
+    pub fn grow(&mut self, entries_num : usize) {
+        let prev_len = self.entries.len();
+        let prev_len_next = prev_len + 1;
+        self.entries.extend(
+            (prev_len_next..(prev_len_next + entries_num))
+            .map(|n| Entry::Empty(n))
+            );
+        debug_assert_eq!(self.entries.len(), prev_len + entries_num);
     }
 
     fn local_index(&self, idx: I) -> Option<usize> {
@@ -631,4 +651,56 @@ mod tests {
         let vals: Vec<u32> = slab.iter_mut().map(|r| *r).collect();
         assert_eq!(vals, vec![0, 1, 2, 3]);
     }
+
+    #[test]
+    fn test_grow() {
+        let mut slab = Slab::<u32, usize>::new_starting_at(2, 4);
+        for i in 0..4 {
+            slab.insert(i).unwrap();
+        }
+
+        assert!(slab.insert(0).is_err());
+
+        slab.grow(3);
+
+        let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
+        assert_eq!(vals, vec![0, 1, 2, 3]);
+
+        for i in 0..3 {
+            slab.insert(i).unwrap();
+        }
+        assert!(slab.insert(0).is_err());
+
+        let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
+        assert_eq!(vals, vec![0, 1, 2, 3, 0, 1, 2]);
+    }
+
+    #[test]
+    fn test_clear() {
+        let mut slab = Slab::<u32, usize>::new_starting_at(2, 4);
+        for i in 0..4 {
+            slab.insert(i).unwrap();
+        }
+
+        // clear full
+        slab.clear();
+
+        let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
+        assert_eq!(vals, vec![]);
+
+        for i in 0..2 {
+            slab.insert(i).unwrap();
+        }
+
+        let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
+        assert_eq!(vals, vec![0, 1]);
+
+
+        // clear half-filled
+        slab.clear();
+
+        let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
+        assert_eq!(vals, vec![]);
+    }
+
 }
