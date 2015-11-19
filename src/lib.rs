@@ -219,7 +219,7 @@ impl<T, I: Index> Slab<T, I> {
     pub fn iter(&self) -> SlabIter<T, I> {
         SlabIter {
             slab: self,
-            cur_idx: self.offset,
+            cur_idx: 0,
             yielded: 0
         }
     }
