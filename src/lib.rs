@@ -219,7 +219,7 @@ impl<T, I: Index> Slab<T, I> {
     pub fn iter(&self) -> SlabIter<T, I> {
         SlabIter {
             slab: self,
-            cur_idx: self.offset,
+            cur_idx: 0,
             yielded: 0
         }
     }
@@ -608,5 +608,27 @@ mod tests {
 
         let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
         assert_eq!(vals, vec![2, 3, 5]);
+    }
+
+    #[test]
+    fn test_iter_with_offset() {
+        let mut slab = Slab::<u32, usize>::new_starting_at(2, 4);
+        for i in 0..4 {
+            slab.insert(i).unwrap();
+        }
+
+        let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
+        assert_eq!(vals, vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn test_iter_mut_with_offset() {
+        let mut slab = Slab::<u32, usize>::new_starting_at(2, 4);
+        for i in 0..4 {
+            slab.insert(i).unwrap();
+        }
+
+        let vals: Vec<u32> = slab.iter_mut().map(|r| *r).collect();
+        assert_eq!(vals, vec![0, 1, 2, 3]);
     }
 }
