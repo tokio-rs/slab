@@ -157,6 +157,33 @@ impl<T, I: Index> Slab<T, I> {
         self.len += 1;
         Some(I::from_usize(idx + self.offset))
     }
+    /// Like `insert_with` but allows function to return nothing instead of
+    /// a value.
+    ///
+    /// This is useful for mio when you need a token to register a socket
+    /// but socket registration might fail so you don't have anything useful
+    /// to insert.
+    pub fn insert_with_opt<F>(&mut self, fun: F) -> Option<I>
+        where F : FnOnce(I) -> Option<T>
+    {
+        let idx = self.next;
+        if idx >= self.entries.len() {
+            return None;
+        }
+
+        let value = fun(I::from_usize(idx + self.offset));
+        if value.is_none() {
+            return None;
+        }
+
+        self.next = match self.entries[idx] {
+            Entry::Empty(next) => next,
+            Entry::Filled(_) => panic!("Tried to insert into filled index")
+        };
+        self.entries[idx] = Entry::Filled(value.unwrap());
+        self.len += 1;
+        Some(I::from_usize(idx + self.offset))
+    }
 
     /// Releases the given slot
     pub fn remove(&mut self, idx: I) -> Option<T> {
@@ -413,6 +440,22 @@ mod tests {
         assert_eq!(slab.get(0), None);
         assert_eq!(slab.get_mut(0), None);
         assert_eq!(tok, 1);
+    }
+
+    #[test]
+    fn test_insert_with_opt() {
+        let mut slab = Slab::<usize, usize>::new_starting_at(1, 2);
+        let tok = slab.insert_with_opt(|_t| Some(5)).unwrap();
+        assert_eq!(tok, 1);
+        assert_eq!(slab.get(1), Some(&5));
+        assert_eq!(slab.get_mut(1), Some(&mut 5));
+        let tok = slab.insert_with_opt(|_t| None);
+        assert_eq!(tok, None);
+        assert_eq!(slab.get(1), Some(&5));
+        assert_eq!(slab.get(2), None);
+        let tok = slab.insert(6).unwrap();
+        assert_eq!(tok, 2);
+        assert_eq!(slab.get(2), Some(&6));
     }
 
     #[test]
