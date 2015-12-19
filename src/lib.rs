@@ -161,7 +161,13 @@ impl<T, I: Index> Slab<T, I> {
     /// Releases the given slot
     pub fn remove(&mut self, idx: I) -> Option<T> {
         let next = self.next;
-        self.replace_(idx, Entry::Empty(next))
+        //replace this slot with Empty, if there was something
+        //in the slot, decrement the length
+        let entry = self.replace_(idx, Entry::Empty(next));
+        if entry.is_some() {
+            self.len -= 1;
+        }
+        return entry
     }
 
     pub fn replace(&mut self, idx: I, t : T) -> Option<T> {
@@ -270,7 +276,6 @@ impl<T, I: Index> Slab<T, I> {
 
         if let Entry::Filled(val) = mem::replace(&mut self.entries[idx], e) {
             self.next = idx;
-            self.len -= 1;
             return Some(val);
         }
 
