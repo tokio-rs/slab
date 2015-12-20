@@ -161,11 +161,23 @@ impl<T, I: Index> Slab<T, I> {
     /// Releases the given slot
     pub fn remove(&mut self, idx: I) -> Option<T> {
         let next = self.next;
-        self.replace_(idx, Entry::Empty(next))
+        //replace this slot with Empty, if there was something
+        //in the slot, decrement the length
+        let entry = self.replace_(idx, Entry::Empty(next));
+        if entry.is_some() {
+            self.len -= 1;
+        }
+        entry
     }
 
+    /// Replace the given slot, if the slot being replaced was empty,
+    /// then we increment the len of the slab
     pub fn replace(&mut self, idx: I, t : T) -> Option<T> {
-        self.replace_(idx, Entry::Filled(t))
+        let entry = self.replace_(idx, Entry::Filled(t));
+        if entry.is_none() {
+            self.len += 1;
+        }
+        entry
     }
 
     /// Execute a function on the *value* in the slot and put the result of
@@ -270,7 +282,6 @@ impl<T, I: Index> Slab<T, I> {
 
         if let Entry::Filled(val) = mem::replace(&mut self.entries[idx], e) {
             self.next = idx;
-            self.len -= 1;
             return Some(val);
         }
 
@@ -570,6 +581,19 @@ mod tests {
         assert!(slab.replace(tok, 6).is_some());
         assert!(slab.replace(tok+1, 555).is_none());
         assert_eq!(slab[tok], 6);
+        assert_eq!(slab.count(), 2);
+    }
+
+    #[test]
+    fn test_replace_again() {
+        let mut slab = Slab::<usize, usize>::new(16);
+        let tok = slab.insert(5).unwrap();
+        assert!(slab.replace(tok, 6).is_some());
+        assert!(slab.replace(tok, 7).is_some());
+        assert!(slab.replace(tok, 8).is_some());
+        assert!(slab.replace(tok+1, 555).is_none());
+        assert_eq!(slab[tok], 8);
+        assert_eq!(slab.count(), 2);
     }
 
     #[test]
