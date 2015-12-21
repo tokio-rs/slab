@@ -143,19 +143,7 @@ impl<T, I: Index> Slab<T, I> {
     /// Like `insert` but for objects that require newly allocated
     /// usize in their constructor.
     pub fn insert_with<F>(&mut self, fun: F) -> Option<I> where F : FnOnce(I) -> T {
-        let idx = self.next;
-        if idx >= self.entries.len() {
-            return None;
-        }
-
-        self.next = match self.entries[idx] {
-            Entry::Empty(next) => next,
-            Entry::Filled(_) => panic!("Tried to insert into filled index")
-        };
-
-        self.entries[idx] = Entry::Filled(fun(I::from_usize(idx + self.offset)));
-        self.len += 1;
-        Some(I::from_usize(idx + self.offset))
+        self.insert_with_opt(|idx| Some(fun(idx)))
     }
     /// Like `insert_with` but allows function to return nothing instead of
     /// a value.
