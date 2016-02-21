@@ -72,7 +72,7 @@ impl<T, I: Index> Slab<T, I> {
 
     pub fn new_starting_at(offset: I, capacity: usize) -> Slab<T, I> {
         assert!(capacity <= usize::MAX, "capacity too large");
-        let entries = (1..capacity+1)
+        let entries = (1..capacity + 1)
             .map(Slot::Empty)
             .collect::<Vec<_>>();
 
@@ -131,7 +131,7 @@ impl<T, I: Index> Slab<T, I> {
     pub fn insert(&mut self, val: T) -> Result<I, T> {
         match self.vacant_entry() {
             Some(entry) => Ok(entry.insert(val).index()),
-            None => Err(val)
+            None => Err(val),
         }
     }
 
@@ -146,7 +146,7 @@ impl<T, I: Index> Slab<T, I> {
 
         Some(VacantEntry {
             slab: self,
-            idx: idx
+            idx: idx,
         })
     }
 
@@ -155,22 +155,28 @@ impl<T, I: Index> Slab<T, I> {
         let idx = local_idx + self.offset;
 
         Some(match self.entries[local_idx] {
-            Slot::Empty(_) => Entry::Vacant(VacantEntry {
-                slab: self,
-                idx: idx
-            }),
+            Slot::Empty(_) => {
+                Entry::Vacant(VacantEntry {
+                    slab: self,
+                    idx: idx,
+                })
+            }
 
-            Slot::Filled(_) => Entry::Occupied(OccupiedEntry {
-                slab: self,
-                idx: idx
-            })
+            Slot::Filled(_) => {
+                Entry::Occupied(OccupiedEntry {
+                    slab: self,
+                    idx: idx,
+                })
+            }
         })
     }
 
     /// Like `insert` but for objects that require newly allocated
     /// usize in their constructor.
     #[inline]
-    pub fn insert_with<F>(&mut self, fun: F) -> Option<I> where F : FnOnce(I) -> T {
+    pub fn insert_with<F>(&mut self, fun: F) -> Option<I>
+        where F: FnOnce(I) -> T
+    {
         let entry = some!(self.vacant_entry());
         let idx = entry.index();
         Some(entry.insert(fun(idx)).index())
@@ -184,7 +190,7 @@ impl<T, I: Index> Slab<T, I> {
     /// to insert.
     #[inline]
     pub fn insert_with_opt<F>(&mut self, fun: F) -> Option<I>
-        where F : FnOnce(I) -> Option<T>
+        where F: FnOnce(I) -> Option<T>
     {
         let entry = some!(self.vacant_entry());
         let idx = entry.index();
@@ -196,8 +202,8 @@ impl<T, I: Index> Slab<T, I> {
     #[inline]
     pub fn remove(&mut self, idx: I) -> Option<T> {
         let next = self.next;
-        //replace this slot with Empty, if there was something
-        //in the slot, decrement the length
+        // replace this slot with Empty, if there was something
+        // in the slot, decrement the length
         let entry = self.replace_(idx, Slot::Empty(next));
         if entry.is_some() {
             self.len -= 1;
@@ -208,7 +214,7 @@ impl<T, I: Index> Slab<T, I> {
     /// Replace the given slot, if the slot being replaced was empty,
     /// then we increment the len of the slab
     #[inline]
-    pub fn replace(&mut self, idx: I, t : T) -> Option<T> {
+    pub fn replace(&mut self, idx: I, t: T) -> Option<T> {
         let entry = self.replace_(idx, Slot::Filled(t));
         if entry.is_none() {
             self.len += 1;
@@ -225,7 +231,8 @@ impl<T, I: Index> Slab<T, I> {
     /// This method is very useful for storing state machines inside Slab
     #[inline]
     pub fn replace_with<F>(&mut self, idx: I, fun: F) -> Result<(), ()>
-    where F: FnOnce(T) -> Option<T> {
+        where F: FnOnce(T) -> Option<T>
+    {
         match self.entry(idx) {
             None => Err(()),
             Some(Entry::Vacant(_)) => Err(()),
@@ -241,7 +248,9 @@ impl<T, I: Index> Slab<T, I> {
     /// In other words, remove all elements `e` such that `f(&e)` returns false.
     /// This method operates in place and preserves the order of the retained
     /// elements.
-    pub fn retain<F>(&mut self, mut fun: F) where F: FnMut(&T) -> bool {
+    pub fn retain<F>(&mut self, mut fun: F)
+        where F: FnMut(&T) -> bool
+    {
         for i in 0..self.len {
             let idx = I::from_usize(i + self.offset);
 
@@ -260,7 +269,7 @@ impl<T, I: Index> Slab<T, I> {
         SlabIter {
             slab: self,
             cur_idx: 0,
-            yielded: 0
+            yielded: 0,
         }
     }
 
@@ -279,13 +288,10 @@ impl<T, I: Index> Slab<T, I> {
     }
 
     /// Grow the slab, by adding `entries_num`
-    pub fn grow(&mut self, entries_num : usize) {
+    pub fn grow(&mut self, entries_num: usize) {
         let prev_len = self.entries.len();
         let prev_len_next = prev_len + 1;
-        self.entries.extend(
-            (prev_len_next..(prev_len_next + entries_num))
-            .map(|n| Slot::Empty(n))
-            );
+        self.entries.extend((prev_len_next..(prev_len_next + entries_num)).map(|n| Slot::Empty(n)));
         debug_assert_eq!(self.entries.len(), prev_len + entries_num);
     }
 
@@ -294,7 +300,7 @@ impl<T, I: Index> Slab<T, I> {
 
         self.next = match self.entries[idx] {
             Slot::Empty(next) => next,
-            Slot::Filled(_) => panic!("Tried to insert into filled index")
+            Slot::Filled(_) => panic!("Tried to insert into filled index"),
         };
 
         self.entries[idx] = Slot::Filled(value);
@@ -330,12 +336,11 @@ impl<T, I: Index> Slab<T, I> {
 
         None
     }
-
 }
 
 pub enum Entry<'slab, I: Index + 'slab, T: 'slab> {
     Vacant(VacantEntry<'slab, I, T>),
-    Occupied(OccupiedEntry<'slab, I, T>)
+    Occupied(OccupiedEntry<'slab, I, T>),
 }
 
 impl<'slab, I: Index, T> Entry<'slab, I, T> {
@@ -343,29 +348,31 @@ impl<'slab, I: Index, T> Entry<'slab, I, T> {
     pub fn or_insert(self, default: T) -> &'slab mut T {
         match self {
             Entry::Occupied(o) => o.into_mut(),
-            Entry::Vacant(v) => v.insert(default).into_mut()
+            Entry::Vacant(v) => v.insert(default).into_mut(),
         }
     }
 
     #[inline]
     pub fn or_insert_with<F>(self, fun: F) -> &'slab mut T
-    where F: FnOnce(I) -> T {
+        where F: FnOnce(I) -> T
+    {
         let idx = self.index();
 
         match self {
             Entry::Occupied(o) => o.into_mut(),
-            Entry::Vacant(v) => v.insert(fun(idx)).into_mut()
+            Entry::Vacant(v) => v.insert(fun(idx)).into_mut(),
         }
     }
 
     #[inline]
     pub fn or_insert_with_opt<F>(self, fun: F) -> Option<&'slab mut T>
-    where F: FnOnce(I) -> Option<T> {
+        where F: FnOnce(I) -> Option<T>
+    {
         let idx = self.index();
 
         Some(match self {
             Entry::Occupied(o) => o.into_mut(),
-            Entry::Vacant(v) => v.insert(some!(fun(idx))).into_mut()
+            Entry::Vacant(v) => v.insert(some!(fun(idx))).into_mut(),
         })
     }
 
@@ -373,7 +380,7 @@ impl<'slab, I: Index, T> Entry<'slab, I, T> {
     pub fn index(&self) -> I {
         match *self {
             Entry::Occupied(ref o) => o.index(),
-            Entry::Vacant(ref v) => v.index()
+            Entry::Vacant(ref v) => v.index(),
         }
     }
 }
@@ -390,27 +397,30 @@ impl<'slab, I: Index, T> VacantEntry<'slab, I, T> {
 
         OccupiedEntry {
             slab: self.slab,
-            idx: self.idx
+            idx: self.idx,
         }
     }
 
     #[inline]
-    pub fn index(&self) -> I { I::from_usize(self.idx) }
+    pub fn index(&self) -> I {
+        I::from_usize(self.idx)
+    }
 }
 
 pub struct OccupiedEntry<'slab, I: Index + 'slab, T: 'slab> {
     slab: &'slab mut Slab<T, I>,
-    idx: usize
+    idx: usize,
 }
 
 impl<'slab, I: Index, T> OccupiedEntry<'slab, I, T> {
     pub fn replace_with<F>(self, fun: F) -> Entry<'slab, I, T>
-    where F: FnOnce(T) -> Option<T> {
+        where F: FnOnce(T) -> Option<T>
+    {
         let (val, vacant) = self.remove();
 
         let newval = match fun(val) {
             Some(val) => val,
-            None => return Entry::Vacant(vacant)
+            None => return Entry::Vacant(vacant),
         };
 
         // Reinsert the new value.
@@ -420,9 +430,13 @@ impl<'slab, I: Index, T> OccupiedEntry<'slab, I, T> {
     #[inline]
     pub fn remove(self) -> (T, VacantEntry<'slab, I, T>) {
         let idx = self.index();
-        let val = self.slab.remove(idx)
-            .expect("Filled slot in OccupiedEntry");
-        let vacant = VacantEntry { slab: self.slab, idx: self.idx };
+        let val = self.slab
+                      .remove(idx)
+                      .expect("Filled slot in OccupiedEntry");
+        let vacant = VacantEntry {
+            slab: self.slab,
+            idx: self.idx,
+        };
 
         (val, vacant)
     }
@@ -430,25 +444,30 @@ impl<'slab, I: Index, T> OccupiedEntry<'slab, I, T> {
     #[inline]
     pub fn get(&self) -> &T {
         let idx = self.index();
-        self.slab.get(idx)
+        self.slab
+            .get(idx)
             .expect("Filled slot in OccupiedEntry")
     }
 
     #[inline]
     pub fn get_mut(&mut self) -> &mut T {
         let idx = self.index();
-        self.slab.get_mut(idx)
+        self.slab
+            .get_mut(idx)
             .expect("Filled slot in OccupiedEntry")
     }
 
     pub fn into_mut(self) -> &'slab mut T {
         let idx = self.index();
-        self.slab.get_mut(idx)
+        self.slab
+            .get_mut(idx)
             .expect("Filled slot in OccupiedEntry")
     }
 
     #[inline]
-    pub fn index(&self) -> I { I::from_usize(self.idx) }
+    pub fn index(&self) -> I {
+        I::from_usize(self.idx)
+    }
 }
 
 impl<T, I: Index> ops::Index<I> for Slab<T, I> {
@@ -465,19 +484,22 @@ impl<T, I: Index> ops::IndexMut<I> for Slab<T, I> {
     }
 }
 
-impl<T, I : Index> fmt::Debug for Slab<T, I> {
+impl<T, I: Index> fmt::Debug for Slab<T, I> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Slab {{ len: {}, cap: {} }}", self.len, self.entries.len())
+        write!(fmt,
+               "Slab {{ len: {}, cap: {} }}",
+               self.len,
+               self.entries.len())
     }
 }
 
-pub struct SlabIter<'a, T: 'a, I : Index+'a> {
+pub struct SlabIter<'a, T: 'a, I: Index + 'a> {
     slab: &'a Slab<T, I>,
     cur_idx: usize,
-    yielded: usize
+    yielded: usize,
 }
 
-impl<'a, T, I : Index> Iterator for SlabIter<'a, T, I> {
+impl<'a, T, I: Index> Iterator for SlabIter<'a, T, I> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<&'a T> {
@@ -498,11 +520,11 @@ impl<'a, T, I : Index> Iterator for SlabIter<'a, T, I> {
     }
 }
 
-pub struct SlabMutIter<'a, T: 'a, I : Index+'a> {
+pub struct SlabMutIter<'a, T: 'a, I: Index + 'a> {
     iter: SlabIter<'a, T, I>,
 }
 
-impl<'a, T, I : Index> Iterator for SlabMutIter<'a, T, I> {
+impl<'a, T, I: Index> Iterator for SlabMutIter<'a, T, I> {
     type Item = &'a mut T;
 
     fn next(&mut self) -> Option<&'a mut T> {
@@ -510,7 +532,7 @@ impl<'a, T, I : Index> Iterator for SlabMutIter<'a, T, I> {
     }
 }
 
-impl<'a, T, I : Index> IntoIterator for &'a Slab<T, I> {
+impl<'a, T, I: Index> IntoIterator for &'a Slab<T, I> {
     type Item = &'a T;
     type IntoIter = SlabIter<'a, T, I>;
 
@@ -519,7 +541,7 @@ impl<'a, T, I : Index> IntoIterator for &'a Slab<T, I> {
     }
 }
 
-impl<'a, T, I : Index> IntoIterator for &'a mut Slab<T, I> {
+impl<'a, T, I: Index> IntoIterator for &'a mut Slab<T, I> {
     type Item = &'a mut T;
     type IntoIter = SlabMutIter<'a, T, I>;
 
@@ -712,7 +734,7 @@ mod tests {
 
     #[test]
     fn test_contains() {
-        let mut slab = Slab::new_starting_at(5 ,16);
+        let mut slab = Slab::new_starting_at(5, 16);
         assert!(!slab.contains(0));
 
         let idx = slab.insert(111).unwrap();
@@ -756,7 +778,7 @@ mod tests {
         let mut slab = Slab::<usize, usize>::new(16);
         let tok = slab.insert(5).unwrap();
         assert!(slab.replace(tok, 6).is_some());
-        assert!(slab.replace(tok+1, 555).is_none());
+        assert!(slab.replace(tok + 1, 555).is_none());
         assert_eq!(slab[tok], 6);
         assert_eq!(slab.count(), 2);
     }
@@ -768,7 +790,7 @@ mod tests {
         assert!(slab.replace(tok, 6).is_some());
         assert!(slab.replace(tok, 7).is_some());
         assert!(slab.replace(tok, 8).is_some());
-        assert!(slab.replace(tok+1, 555).is_none());
+        assert!(slab.replace(tok + 1, 555).is_none());
         assert_eq!(slab[tok], 8);
         assert_eq!(slab.count(), 2);
     }
@@ -777,8 +799,8 @@ mod tests {
     fn test_replace_with() {
         let mut slab = Slab::<u32, usize>::new(16);
         let tok = slab.insert(5u32).unwrap();
-        assert!(slab.replace_with(tok, |x| Some(x+1)).is_ok());
-        assert!(slab.replace_with(tok+1, |x| Some(x+1)).is_err());
+        assert!(slab.replace_with(tok, |x| Some(x + 1)).is_ok());
+        assert!(slab.replace_with(tok + 1, |x| Some(x + 1)).is_err());
         assert_eq!(slab[tok], 6);
     }
 
@@ -933,8 +955,8 @@ mod tests {
                         // Fill with vacant, remove again.
                         let o = vacant.insert(i * 2);
                         assert_eq!(o.remove().0, i * 2);
-                    },
-                    Entry::Vacant(_) => panic!("Unexpected vacant entry!")
+                    }
+                    Entry::Vacant(_) => panic!("Unexpected vacant entry!"),
                 }
             }
         }
