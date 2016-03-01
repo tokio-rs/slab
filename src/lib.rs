@@ -169,6 +169,8 @@ impl<T, I: Index> Slab<T, I> {
 
     /// Like `insert` but for objects that require newly allocated
     /// usize in their constructor.
+    ///
+    /// NOTE: This method is deprecated in favor of the `entry` API.
     #[inline]
     pub fn insert_with<F>(&mut self, fun: F) -> Option<I> where F : FnOnce(I) -> T {
         let entry = some!(self.vacant_entry());
@@ -182,6 +184,8 @@ impl<T, I: Index> Slab<T, I> {
     /// This is useful for mio when you need a token to register a socket
     /// but socket registration might fail so you don't have anything useful
     /// to insert.
+    ///
+    /// NOTE: This method is deprecated in favor of the `entry` API.
     #[inline]
     pub fn insert_with_opt<F>(&mut self, fun: F) -> Option<I>
         where F : FnOnce(I) -> Option<T>
@@ -223,6 +227,8 @@ impl<T, I: Index> Slab<T, I> {
     /// Returns Err(()) if slot was empty
     ///
     /// This method is very useful for storing state machines inside Slab
+    ///
+    /// NOTE: This method is deprecated in favor of the `entry` API.
     #[inline]
     pub fn replace_with<F>(&mut self, idx: I, fun: F) -> Result<(), ()>
     where F: FnOnce(T) -> Option<T> {
