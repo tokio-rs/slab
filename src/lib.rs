@@ -205,21 +205,25 @@ impl<T, I: Index> Slab<T, I> {
     /// Releases the given slot
     #[inline]
     pub fn remove(&mut self, idx: I) -> Option<T> {
+        let idx = some!(self.local_index(idx));
         let next = self.next;
-        // replace this slot with Empty, if there was something
-        // in the slot, decrement the length
-        let entry = self.replace_(idx, Slot::Empty(next));
-        if entry.is_some() {
+
+        // replace this slot with Empty if it was not already Empty
+        if let Slot::Filled(_) = self.entries[idx] {
             self.len -= 1;
+            self.replace_(idx, Slot::Empty(next))
+        } else {
+            None
         }
-        entry
     }
 
     /// Replace the given slot, if the slot being replaced was empty,
     /// then we increment the len of the slab
     #[inline]
-    pub fn replace(&mut self, idx: I, t: T) -> Option<T> {
+    pub fn replace(&mut self, idx: I, t : T) -> Option<T> {
+        let idx = some!(self.local_index(idx));
         let entry = self.replace_(idx, Slot::Filled(t));
+
         if entry.is_none() {
             self.len += 1;
         }
@@ -332,11 +336,9 @@ impl<T, I: Index> Slab<T, I> {
     }
 
     #[inline]
-    fn replace_(&mut self, idx: I, e: Slot<T>) -> Option<T> {
-        let idx = some!(self.local_index(idx));
-
-        if let Slot::Filled(val) = mem::replace(&mut self.entries[idx], e) {
-            self.next = idx;
+    fn replace_(&mut self, local_idx: usize, e: Slot<T>) -> Option<T> {
+        if let Slot::Filled(val) = mem::replace(&mut self.entries[local_idx], e) {
+            self.next = local_idx;
             return Some(val);
         }
 
@@ -671,6 +673,16 @@ mod tests {
         slab.remove(t1);
         let t2 = slab.insert(20).ok().expect("Failed to insert");
         assert_eq!(slab[t2], 20);
+    }
+
+    #[test]
+    fn test_remove_empty_entry() {
+        let mut s = Slab::<(), usize>::new_starting_at(0, 3);
+        let t1 = s.insert(()).unwrap();
+        assert!(s.remove(t1).is_some());
+        assert!(s.remove(t1).is_none());
+        assert!(s.insert(()).is_ok());
+        assert!(s.insert(()).is_ok());
     }
 
     #[test]
