@@ -4,7 +4,7 @@ use std::ops;
 use std::marker::PhantomData;
 
 /// A preallocated chunk of memory for storing objects of the same type.
-pub struct Slab<T, I: Index> {
+pub struct Slab<T, I> {
     // Chunk of memory
     entries: Vec<Slot<T>>,
 
@@ -38,24 +38,7 @@ impl<T> Slot<T> {
     }
 }
 
-/// Slab can be indexed by any type implementing `Index` trait.
-pub trait Index {
-    fn from_usize(i: usize) -> Self;
-
-    fn as_usize(&self) -> usize;
-}
-
-impl Index for usize {
-    fn from_usize(i: usize) -> usize {
-        i
-    }
-
-    fn as_usize(&self) -> usize {
-        *self
-    }
-}
-
-unsafe impl<T, I: Index> Send for Slab<T, I> where T: Send {}
+unsafe impl<T, I> Send for Slab<T, I> where T: Send {}
 
 macro_rules! some {
     ($expr:expr) => (match $expr {
@@ -64,10 +47,10 @@ macro_rules! some {
     })
 }
 
-impl<T, I: Index> Slab<T, I> {
+impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
     #[inline]
     pub fn new(capacity: usize) -> Slab<T, I> {
-        Slab::new_starting_at(I::from_usize(0), capacity)
+        Slab::new_starting_at(I::from(0), capacity)
     }
 
     pub fn new_starting_at(offset: I, capacity: usize) -> Slab<T, I> {
@@ -80,7 +63,7 @@ impl<T, I: Index> Slab<T, I> {
             entries: entries,
             next: 0,
             len: 0,
-            offset: offset.as_usize(),
+            offset: offset.into(),
             _marker: PhantomData,
         }
     }
@@ -262,7 +245,7 @@ impl<T, I: Index> Slab<T, I> {
         where F: FnMut(&T) -> bool
     {
         for i in 0..self.len {
-            let idx = I::from_usize(i + self.offset);
+            let idx = I::from(i + self.offset);
 
             let _ = self.replace_with(idx, |x| {
                 if fun(&x) {
@@ -316,11 +299,11 @@ impl<T, I: Index> Slab<T, I> {
         self.entries[idx] = Slot::Filled(value);
         self.len += 1;
 
-        I::from_usize(idx + self.offset)
+        I::from(idx + self.offset)
     }
 
     fn local_index(&self, idx: I) -> Option<usize> {
-        let idx = idx.as_usize();
+        let idx: usize = idx.into();
 
         if idx < self.offset {
             return None;
@@ -346,12 +329,12 @@ impl<T, I: Index> Slab<T, I> {
     }
 }
 
-pub enum Entry<'slab, I: Index + 'slab, T: 'slab> {
+pub enum Entry<'slab, I: 'slab, T: 'slab> {
     Vacant(VacantEntry<'slab, I, T>),
     Occupied(OccupiedEntry<'slab, I, T>),
 }
 
-impl<'slab, I: Index, T> Entry<'slab, I, T> {
+impl<'slab, I: From<usize> + Into<usize>, T> Entry<'slab, I, T> {
     #[inline]
     pub fn or_insert(self, default: T) -> &'slab mut T {
         match self {
@@ -393,12 +376,12 @@ impl<'slab, I: Index, T> Entry<'slab, I, T> {
     }
 }
 
-pub struct VacantEntry<'slab, I: Index + 'slab, T: 'slab> {
+pub struct VacantEntry<'slab, I: 'slab, T: 'slab> {
     slab: &'slab mut Slab<T, I>,
     idx: usize,
 }
 
-impl<'slab, I: Index, T> VacantEntry<'slab, I, T> {
+impl<'slab, I: From<usize> + Into<usize>, T> VacantEntry<'slab, I, T> {
     #[inline]
     pub fn insert(self, val: T) -> OccupiedEntry<'slab, I, T> {
         self.slab.insert_at(self.idx, val);
@@ -411,16 +394,16 @@ impl<'slab, I: Index, T> VacantEntry<'slab, I, T> {
 
     #[inline]
     pub fn index(&self) -> I {
-        I::from_usize(self.idx)
+        I::from(self.idx)
     }
 }
 
-pub struct OccupiedEntry<'slab, I: Index + 'slab, T: 'slab> {
+pub struct OccupiedEntry<'slab, I: 'slab, T: 'slab> {
     slab: &'slab mut Slab<T, I>,
     idx: usize,
 }
 
-impl<'slab, I: Index, T> OccupiedEntry<'slab, I, T> {
+impl<'slab, I: From<usize> + Into<usize>, T> OccupiedEntry<'slab, I, T> {
     pub fn replace_with<F>(self, fun: F) -> Entry<'slab, I, T>
         where F: FnOnce(T) -> Option<T>
     {
@@ -474,11 +457,11 @@ impl<'slab, I: Index, T> OccupiedEntry<'slab, I, T> {
 
     #[inline]
     pub fn index(&self) -> I {
-        I::from_usize(self.idx)
+        I::from(self.idx)
     }
 }
 
-impl<T, I: Index> ops::Index<I> for Slab<T, I> {
+impl<T, I: From<usize> + Into<usize>> ops::Index<I> for Slab<T, I> {
     type Output = T;
 
     fn index(&self, index: I) -> &T {
@@ -486,13 +469,13 @@ impl<T, I: Index> ops::Index<I> for Slab<T, I> {
     }
 }
 
-impl<T, I: Index> ops::IndexMut<I> for Slab<T, I> {
+impl<T, I: From<usize> + Into<usize>> ops::IndexMut<I> for Slab<T, I> {
     fn index_mut(&mut self, index: I) -> &mut T {
         self.get_mut(index).expect("invalid index")
     }
 }
 
-impl<T, I: Index> fmt::Debug for Slab<T, I> {
+impl<T, I> fmt::Debug for Slab<T, I> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt,
                "Slab {{ len: {}, cap: {} }}",
@@ -501,13 +484,13 @@ impl<T, I: Index> fmt::Debug for Slab<T, I> {
     }
 }
 
-pub struct SlabIter<'a, T: 'a, I: Index + 'a> {
+pub struct SlabIter<'a, T: 'a, I: 'a> {
     slab: &'a Slab<T, I>,
     cur_idx: usize,
     yielded: usize,
 }
 
-impl<'a, T, I: Index> Iterator for SlabIter<'a, T, I> {
+impl<'a, T, I> Iterator for SlabIter<'a, T, I> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<&'a T> {
@@ -528,11 +511,11 @@ impl<'a, T, I: Index> Iterator for SlabIter<'a, T, I> {
     }
 }
 
-pub struct SlabMutIter<'a, T: 'a, I: Index + 'a> {
+pub struct SlabMutIter<'a, T: 'a, I: 'a> {
     iter: SlabIter<'a, T, I>,
 }
 
-impl<'a, T, I: Index> Iterator for SlabMutIter<'a, T, I> {
+impl<'a, T, I> Iterator for SlabMutIter<'a, T, I> {
     type Item = &'a mut T;
 
     fn next(&mut self) -> Option<&'a mut T> {
@@ -540,7 +523,7 @@ impl<'a, T, I: Index> Iterator for SlabMutIter<'a, T, I> {
     }
 }
 
-impl<'a, T, I: Index> IntoIterator for &'a Slab<T, I> {
+impl<'a, T, I: From<usize> + Into<usize>> IntoIterator for &'a Slab<T, I> {
     type Item = &'a T;
     type IntoIter = SlabIter<'a, T, I>;
 
@@ -549,7 +532,7 @@ impl<'a, T, I: Index> IntoIterator for &'a Slab<T, I> {
     }
 }
 
-impl<'a, T, I: Index> IntoIterator for &'a mut Slab<T, I> {
+impl<'a, T, I: From<usize> + Into<usize>> IntoIterator for &'a mut Slab<T, I> {
     type Item = &'a mut T;
     type IntoIter = SlabMutIter<'a, T, I>;
 
@@ -565,14 +548,15 @@ mod tests {
     #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct MyIndex(pub usize);
 
-    impl super::Index for MyIndex {
-        fn from_usize(i: usize) -> MyIndex {
+    impl From<usize> for MyIndex {
+        fn from(i: usize) -> MyIndex {
             MyIndex(i)
         }
+    }
 
-        fn as_usize(&self) -> usize {
-            let MyIndex(inner) = *self;
-            inner
+    impl Into<usize> for MyIndex {
+        fn into(self) -> usize {
+            self.0
         }
     }
 
