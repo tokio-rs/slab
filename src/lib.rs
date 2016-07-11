@@ -54,7 +54,8 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
     }
 
     pub fn new_starting_at(offset: I, capacity: usize) -> Slab<T, I> {
-        assert!(capacity <= usize::MAX, "capacity too large");
+        let offset = offset.into();
+        assert!(capacity < usize::MAX - offset, "capacity too large");
         let entries = (1..capacity + 1)
             .map(Slot::Empty)
             .collect::<Vec<_>>();
@@ -63,11 +64,10 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
             entries: entries,
             next: 0,
             len: 0,
-            offset: offset.into(),
+            offset: offset,
             _marker: PhantomData,
         }
     }
-
     #[inline]
     pub fn count(&self) -> usize {
         self.len
@@ -283,6 +283,7 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
     /// Grow the slab, by adding `entries_num`
     pub fn grow(&mut self, entries_num: usize) {
         let prev_len = self.entries.len();
+        assert!(entries_num < usize::MAX - self.offset - prev_len, "capacity too large");
         let prev_len_next = prev_len + 1;
         self.entries.extend((prev_len_next..(prev_len_next + entries_num)).map(Slot::Empty));
         debug_assert_eq!(self.entries.len(), prev_len + entries_num);
@@ -732,6 +733,28 @@ mod tests {
     fn test_accessing_out_of_bounds() {
         let slab = Slab::<usize, usize>::new(16);
         slab[0];
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_capacity_too_large1() {
+        use std::usize;
+        Slab::<usize, usize>::new(usize::MAX);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_capacity_too_large2() {
+        use std::usize;
+        Slab::<usize, usize>::new_starting_at(usize::MAX - 100, 100);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_capacity_too_large_in_grow() {
+        use std::usize;
+        let mut slab = Slab::<usize, usize>::new(100);
+        slab.grow(usize::MAX - 100);
     }
 
     #[test]
