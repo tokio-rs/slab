@@ -80,7 +80,7 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
 
     #[inline]
     pub fn remaining(&self) -> usize {
-        self.entries.capacity() - self.len
+        self.entries.len() - self.len
     }
 
     #[inline]
@@ -312,7 +312,7 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
 
         let idx = idx - self.offset;
 
-        if idx >= self.entries.capacity() {
+        if idx >= self.entries.len() {
             return None;
         }
 
