@@ -107,7 +107,7 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
     pub fn get_mut(&mut self, idx: I) -> Option<&mut T> {
         let idx = some!(self.local_index(idx));
 
-        return self.entries[idx].as_mut();
+        self.entries[idx].as_mut()
     }
 
     #[inline]
@@ -227,7 +227,7 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
         where F: FnOnce(T) -> Option<T>
     {
         match self.entry(idx) {
-            None => Err(()),
+            None |
             Some(Entry::Vacant(_)) => Err(()),
             Some(Entry::Occupied(entry)) => {
                 entry.replace_with(fun);
@@ -284,7 +284,7 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
     pub fn grow(&mut self, entries_num: usize) {
         let prev_len = self.entries.len();
         let prev_len_next = prev_len + 1;
-        self.entries.extend((prev_len_next..(prev_len_next + entries_num)).map(|n| Slot::Empty(n)));
+        self.entries.extend((prev_len_next..(prev_len_next + entries_num)).map(Slot::Empty));
         debug_assert_eq!(self.entries.len(), prev_len + entries_num);
     }
 
