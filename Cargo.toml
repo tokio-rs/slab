@@ -1,11 +1,11 @@
 [package]
 
 name = "slab"
-version = "0.2.0"
+version = "0.3.0"
 license = "MIT"
 authors = ["Carl Lerche <me@carllerche.com>"]
 description = "Simple slab allocator"
-documentation = "http://rust-doc.s3-website-us-east-1.amazonaws.com/slab/master/slab/"
+documentation = "https://docs.rs/slab/0.3.0/slab/"
 homepage = "https://github.com/carllerche/slab"
 repository = "https://github.com/carllerche/slab"
 readme = "README.md"
