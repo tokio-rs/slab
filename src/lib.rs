@@ -284,7 +284,10 @@ impl<T, I: From<usize> + Into<usize>> ops::IndexMut<I> for Slab<T, I> {
     }
 }
 
-impl<T, I> fmt::Debug for Slab<T, I> {
+impl<T, I> fmt::Debug for Slab<T, I>
+    where T: fmt::Debug,
+          I: fmt::Debug,
+{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt,
                "Slab {{ len: {}, cap: {} }}",
