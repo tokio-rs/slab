@@ -11,9 +11,6 @@ pub struct Slab<T, I> {
     // Number of Filled elements currently in the slab
     len: usize,
 
-    // The index offset
-    offset: usize,
-
     // Offset of the next available slot in the slab. Set to the slab's
     // capacity when the slab is full.
     next: usize,
@@ -49,13 +46,7 @@ macro_rules! some {
 
 impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
     #[inline]
-    pub fn new(capacity: usize) -> Slab<T, I> {
-        Slab::new_starting_at(I::from(0), capacity)
-    }
-
-    pub fn new_starting_at(offset: I, capacity: usize) -> Slab<T, I> {
-        let offset = offset.into();
-        assert!(capacity < usize::MAX - offset, "capacity too large");
+    pub fn with_capacity(capacity: usize) -> Slab<T, I> {
         let entries = (1..capacity + 1)
             .map(Slot::Empty)
             .collect::<Vec<_>>();
@@ -64,10 +55,10 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
             entries: entries,
             next: 0,
             len: 0,
-            offset: offset,
             _marker: PhantomData,
         }
     }
+
     #[inline]
     pub fn count(&self) -> usize {
         self.len
@@ -125,8 +116,6 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
             return None;
         }
 
-        let idx = idx + self.offset;
-
         Some(VacantEntry {
             slab: self,
             idx: idx,
@@ -134,10 +123,9 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
     }
 
     pub fn entry(&mut self, idx: I) -> Option<Entry<I, T>> {
-        let local_idx = some!(self.local_index(idx));
-        let idx = local_idx + self.offset;
+        let idx = some!(self.local_index(idx));
 
-        Some(match self.entries[local_idx] {
+        Some(match self.entries[idx] {
             Slot::Empty(_) => {
                 Entry::Vacant(VacantEntry {
                     slab: self,
@@ -245,7 +233,7 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
         where F: FnMut(&T) -> bool
     {
         for i in 0..self.len {
-            let idx = I::from(i + self.offset);
+            let idx = I::from(i);
 
             let _ = self.replace_with(idx, |x| {
                 if fun(&x) {
@@ -283,15 +271,17 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
     /// Grow the slab, by adding `entries_num`
     pub fn grow(&mut self, entries_num: usize) {
         let prev_len = self.entries.len();
-        assert!(entries_num < usize::MAX - self.offset - prev_len, "capacity too large");
+
+        // Ensure `entries_num` isn't too big
+        assert!(entries_num < usize::MAX - prev_len, "capacity too large");
+
         let prev_len_next = prev_len + 1;
         self.entries.extend((prev_len_next..(prev_len_next + entries_num)).map(Slot::Empty));
+
         debug_assert_eq!(self.entries.len(), prev_len + entries_num);
     }
 
     fn insert_at(&mut self, idx: usize, value: T) -> I {
-        let idx = idx - self.offset;
-
         self.next = match self.entries[idx] {
             Slot::Empty(next) => next,
             Slot::Filled(_) => panic!("Tried to insert into filled index"),
@@ -300,17 +290,11 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
         self.entries[idx] = Slot::Filled(value);
         self.len += 1;
 
-        I::from(idx + self.offset)
+        I::from(idx)
     }
 
     fn local_index(&self, idx: I) -> Option<usize> {
         let idx: usize = idx.into();
-
-        if idx < self.offset {
-            return None;
-        }
-
-        let idx = idx - self.offset;
 
         if idx >= self.entries.len() {
             return None;
@@ -320,9 +304,9 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
     }
 
     #[inline]
-    fn replace_(&mut self, local_idx: usize, e: Slot<T>) -> Option<T> {
-        if let Slot::Filled(val) = mem::replace(&mut self.entries[local_idx], e) {
-            self.next = local_idx;
+    fn replace_(&mut self, idx: usize, e: Slot<T>) -> Option<T> {
+        if let Slot::Filled(val) = mem::replace(&mut self.entries[idx], e) {
+            self.next = idx;
             return Some(val);
         }
 
@@ -563,7 +547,7 @@ mod tests {
 
     #[test]
     fn test_index_trait() {
-        let mut slab = Slab::<usize, MyIndex>::new(1);
+        let mut slab = Slab::<usize, MyIndex>::with_capacity(1);
         let idx = slab.insert(10).ok().expect("Failed to insert");
         assert_eq!(idx, MyIndex(0));
         assert_eq!(slab[idx], 10);
@@ -571,7 +555,7 @@ mod tests {
 
     #[test]
     fn test_insertion() {
-        let mut slab = Slab::<usize, usize>::new(1);
+        let mut slab = Slab::<usize, usize>::with_capacity(1);
         assert_eq!(slab.is_empty(), true);
         assert_eq!(slab.has_remaining(), true);
         assert_eq!(slab.remaining(), 1);
@@ -584,32 +568,33 @@ mod tests {
 
     #[test]
     fn test_insert_with() {
-        let mut slab = Slab::<usize, usize>::new_starting_at(1, 1);
+        let mut slab = Slab::<usize, usize>::with_capacity(1);
         let tok = slab.insert_with(|_t| 5).unwrap();
-        assert_eq!(slab.get(0), None);
-        assert_eq!(slab.get_mut(0), None);
-        assert_eq!(tok, 1);
+        assert_eq!(slab.get(1), None);
+        assert!(slab.get(0).is_some());
+        assert!(slab.get_mut(0).is_some());
+        assert_eq!(tok, 0);
     }
 
     #[test]
     fn test_insert_with_opt() {
-        let mut slab = Slab::<usize, usize>::new_starting_at(1, 2);
+        let mut slab = Slab::<usize, usize>::with_capacity(2);
         let tok = slab.insert_with_opt(|_t| Some(5)).unwrap();
-        assert_eq!(tok, 1);
-        assert_eq!(slab.get(1), Some(&5));
-        assert_eq!(slab.get_mut(1), Some(&mut 5));
+        assert_eq!(tok, 0);
+        assert_eq!(slab.get(0), Some(&5));
+        assert_eq!(slab.get_mut(0), Some(&mut 5));
         let tok = slab.insert_with_opt(|_t| None);
         assert_eq!(tok, None);
-        assert_eq!(slab.get(1), Some(&5));
-        assert_eq!(slab.get(2), None);
+        assert_eq!(slab.get(0), Some(&5));
+        assert_eq!(slab.get(1), None);
         let tok = slab.insert(6).unwrap();
-        assert_eq!(tok, 2);
-        assert_eq!(slab.get(2), Some(&6));
+        assert_eq!(tok, 1);
+        assert_eq!(slab.get(1), Some(&6));
     }
 
     #[test]
     fn test_repeated_insertion() {
-        let mut slab = Slab::<usize, usize>::new(10);
+        let mut slab = Slab::<usize, usize>::with_capacity(10);
 
         for i in 0..10 {
             let idx = slab.insert(i + 10).ok().expect("Failed to insert");
@@ -621,7 +606,7 @@ mod tests {
 
     #[test]
     fn test_repeated_insertion_and_removal() {
-        let mut slab = Slab::<usize, usize>::new(10);
+        let mut slab = Slab::<usize, usize>::with_capacity(10);
         let mut indices = vec![];
 
         for i in 0..10 {
@@ -639,21 +624,21 @@ mod tests {
 
     #[test]
     fn test_insertion_when_full() {
-        let mut slab = Slab::<usize, usize>::new(1);
+        let mut slab = Slab::<usize, usize>::with_capacity(1);
         slab.insert(10).ok().expect("Failed to insert");
         slab.insert(10).err().expect("Inserted into a full slab");
     }
 
     #[test]
     fn test_removal_at_boundries() {
-        let mut slab = Slab::<usize, usize>::new(1);
+        let mut slab = Slab::<usize, usize>::with_capacity(1);
         assert_eq!(slab.remove(0), None);
         assert_eq!(slab.remove(1), None);
     }
 
     #[test]
     fn test_removal_is_successful() {
-        let mut slab = Slab::<usize, usize>::new(1);
+        let mut slab = Slab::<usize, usize>::with_capacity(1);
         let t1 = slab.insert(10).ok().expect("Failed to insert");
         slab.remove(t1);
         let t2 = slab.insert(20).ok().expect("Failed to insert");
@@ -662,7 +647,7 @@ mod tests {
 
     #[test]
     fn test_remove_empty_entry() {
-        let mut s = Slab::<(), usize>::new_starting_at(0, 3);
+        let mut s = Slab::<(), usize>::with_capacity(3);
         let t1 = s.insert(()).unwrap();
         assert!(s.remove(t1).is_some());
         assert!(s.remove(t1).is_none());
@@ -672,7 +657,7 @@ mod tests {
 
     #[test]
     fn test_mut_retrieval() {
-        let mut slab = Slab::<_, usize>::new(1);
+        let mut slab = Slab::<_, usize>::with_capacity(1);
         let t1 = slab.insert("foo".to_string()).ok().expect("Failed to insert");
 
         slab[t1].push_str("bar");
@@ -683,7 +668,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_reusing_slots_1() {
-        let mut slab = Slab::<usize, usize>::new(16);
+        let mut slab = Slab::<usize, usize>::with_capacity(16);
 
         let t0 = slab.insert(123).unwrap();
         let t1 = slab.insert(456).unwrap();
@@ -706,7 +691,7 @@ mod tests {
 
     #[test]
     fn test_reusing_slots_2() {
-        let mut slab = Slab::<usize, usize>::new(16);
+        let mut slab = Slab::<usize, usize>::with_capacity(16);
 
         let t0 = slab.insert(123).unwrap();
 
@@ -731,7 +716,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_accessing_out_of_bounds() {
-        let slab = Slab::<usize, usize>::new(16);
+        let slab = Slab::<usize, usize>::with_capacity(16);
         slab[0];
     }
 
@@ -739,27 +724,20 @@ mod tests {
     #[should_panic]
     fn test_capacity_too_large1() {
         use std::usize;
-        Slab::<usize, usize>::new(usize::MAX);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_capacity_too_large2() {
-        use std::usize;
-        Slab::<usize, usize>::new_starting_at(usize::MAX - 100, 100);
+        Slab::<usize, usize>::with_capacity(usize::MAX);
     }
 
     #[test]
     #[should_panic]
     fn test_capacity_too_large_in_grow() {
         use std::usize;
-        let mut slab = Slab::<usize, usize>::new(100);
+        let mut slab = Slab::<usize, usize>::with_capacity(100);
         slab.grow(usize::MAX - 100);
     }
 
     #[test]
     fn test_contains() {
-        let mut slab = Slab::new_starting_at(5, 16);
+        let mut slab = Slab::with_capacity(16);
         assert!(!slab.contains(0));
 
         let idx = slab.insert(111).unwrap();
@@ -768,7 +746,7 @@ mod tests {
 
     #[test]
     fn test_get() {
-        let mut slab = Slab::<usize, usize>::new(16);
+        let mut slab = Slab::<usize, usize>::with_capacity(16);
         let tok = slab.insert(5).unwrap();
         assert_eq!(slab.get(tok), Some(&5));
         assert_eq!(slab.get(1), None);
@@ -777,7 +755,7 @@ mod tests {
 
     #[test]
     fn test_get_mut() {
-        let mut slab = Slab::<u32, usize>::new(16);
+        let mut slab = Slab::<u32, usize>::with_capacity(16);
         let tok = slab.insert(5u32).unwrap();
         {
             let mut_ref = slab.get_mut(tok).unwrap();
@@ -790,17 +768,8 @@ mod tests {
     }
 
     #[test]
-    fn test_index_with_starting_at() {
-        let mut slab = Slab::<usize, usize>::new_starting_at(1, 1);
-        let tok = slab.insert(5).unwrap();
-        assert_eq!(slab.get(0), None);
-        assert_eq!(slab.get_mut(0), None);
-        assert_eq!(tok, 1);
-    }
-
-    #[test]
     fn test_replace() {
-        let mut slab = Slab::<usize, usize>::new(16);
+        let mut slab = Slab::<usize, usize>::with_capacity(16);
         let tok = slab.insert(5).unwrap();
         assert!(slab.replace(tok, 6).is_some());
         assert!(slab.replace(tok + 1, 555).is_none());
@@ -810,7 +779,7 @@ mod tests {
 
     #[test]
     fn test_replace_again() {
-        let mut slab = Slab::<usize, usize>::new(16);
+        let mut slab = Slab::<usize, usize>::with_capacity(16);
         let tok = slab.insert(5).unwrap();
         assert!(slab.replace(tok, 6).is_some());
         assert!(slab.replace(tok, 7).is_some());
@@ -822,7 +791,7 @@ mod tests {
 
     #[test]
     fn test_replace_with() {
-        let mut slab = Slab::<u32, usize>::new(16);
+        let mut slab = Slab::<u32, usize>::with_capacity(16);
         let tok = slab.insert(5u32).unwrap();
         assert!(slab.replace_with(tok, |x| Some(x + 1)).is_ok());
         assert!(slab.replace_with(tok + 1, |x| Some(x + 1)).is_err());
@@ -831,7 +800,7 @@ mod tests {
 
     #[test]
     fn test_retain() {
-        let mut slab = Slab::<usize, usize>::new(2);
+        let mut slab = Slab::<usize, usize>::with_capacity(2);
         let tok1 = slab.insert(0).unwrap();
         let tok2 = slab.insert(1).unwrap();
         slab.retain(|x| x % 2 == 0);
@@ -842,7 +811,7 @@ mod tests {
 
     #[test]
     fn test_iter() {
-        let mut slab = Slab::<u32, usize>::new_starting_at(0, 4);
+        let mut slab = Slab::<u32, usize>::with_capacity(4);
         for i in 0..4 {
             slab.insert(i).unwrap();
         }
@@ -858,7 +827,7 @@ mod tests {
 
     #[test]
     fn test_iter_mut() {
-        let mut slab = Slab::<u32, usize>::new_starting_at(0, 4);
+        let mut slab = Slab::<u32, usize>::with_capacity(4);
         for i in 0..4 {
             slab.insert(i).unwrap();
         }
@@ -879,30 +848,8 @@ mod tests {
     }
 
     #[test]
-    fn test_iter_with_offset() {
-        let mut slab = Slab::<u32, usize>::new_starting_at(2, 4);
-        for i in 0..4 {
-            slab.insert(i).unwrap();
-        }
-
-        let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
-        assert_eq!(vals, vec![0, 1, 2, 3]);
-    }
-
-    #[test]
-    fn test_iter_mut_with_offset() {
-        let mut slab = Slab::<u32, usize>::new_starting_at(2, 4);
-        for i in 0..4 {
-            slab.insert(i).unwrap();
-        }
-
-        let vals: Vec<u32> = slab.iter_mut().map(|r| *r).collect();
-        assert_eq!(vals, vec![0, 1, 2, 3]);
-    }
-
-    #[test]
     fn test_grow() {
-        let mut slab = Slab::<u32, usize>::new_starting_at(2, 4);
+        let mut slab = Slab::<u32, usize>::with_capacity(4);
         for i in 0..4 {
             slab.insert(i).unwrap();
         }
@@ -925,7 +872,7 @@ mod tests {
 
     #[test]
     fn test_clear() {
-        let mut slab = Slab::<u32, usize>::new_starting_at(2, 4);
+        let mut slab = Slab::<u32, usize>::with_capacity(4);
         for i in 0..4 {
             slab.insert(i).unwrap();
         }
@@ -954,8 +901,8 @@ mod tests {
     #[test]
     fn test_entry() {
         let capacity = 16;
-        let offset = 12;
-        let mut slab = Slab::<usize, usize>::new_starting_at(offset, capacity);
+        let offset = 0;
+        let mut slab = Slab::<usize, usize>::with_capacity(capacity);
 
         // Run through a few times to check clear-fill cycle.
         for _ in 0..3 {
