@@ -39,7 +39,10 @@ pub struct Iter<'a, T: 'a, I: 'a> {
 
 /// A mutable iterator over the values stored in the `Slab`
 pub struct IterMut<'a, T: 'a, I: 'a> {
-    iter: Iter<'a, T, I>,
+    slab: *mut Slab<T, I>,
+    cur_idx: usize,
+    yielded: usize,
+    _marker: PhantomData<&'a mut ()>,
 }
 
 enum Slot<T> {
@@ -202,7 +205,12 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
 
     /// A mutable iterator for visiting all elements stored in the `Slab`
     pub fn iter_mut(&mut self) -> IterMut<T, I> {
-        IterMut { iter: self.iter() }
+        IterMut {
+            slab: self as *mut Slab<T, I>,
+            cur_idx: 0,
+            yielded: 0,
+            _marker: PhantomData,
+        }
     }
 
     /// Empty the slab, by freeing all entries
@@ -438,7 +446,27 @@ impl<'a, T, I> Iterator for IterMut<'a, T, I> {
     type Item = &'a mut T;
 
     fn next(&mut self) -> Option<&'a mut T> {
-        unsafe { mem::transmute(self.iter.next()) }
+        unsafe {
+            while self.yielded < (*self.slab).len {
+                let idx = self.cur_idx;
+
+                match (*self.slab).entries[idx] {
+                    Slot::Filled(ref mut v) => {
+                        self.cur_idx += 1;
+                        self.yielded += 1;
+                        return Some(v);
+                    }
+                    Slot::Empty(_) => {
+                        self.cur_idx += 1;
+                    }
+                    Slot::Invalid => {
+                        panic!("Slab corrupt");
+                    }
+                }
+            }
+
+            None
+        }
     }
 }
 
