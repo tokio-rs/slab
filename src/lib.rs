@@ -222,17 +222,19 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
         self.len = 0;
     }
 
-    /// Grow the slab, by adding `entries_num`
-    pub fn grow(&mut self, entries_num: usize) {
+    /// Reserves the minimum capacity for exactly `additional` more elements to
+    /// be inserted in the given `Slab`. Does nothing if the capacity is
+    /// already sufficient.
+    pub fn reserve_exact(&mut self, additional: usize) {
         let prev_len = self.entries.len();
 
         // Ensure `entries_num` isn't too big
-        assert!(entries_num < usize::MAX - prev_len, "capacity too large");
+        assert!(additional < usize::MAX - prev_len, "capacity too large");
 
         let prev_len_next = prev_len + 1;
-        self.entries.extend((prev_len_next..(prev_len_next + entries_num)).map(Slot::Empty));
+        self.entries.extend((prev_len_next..(prev_len_next + additional)).map(Slot::Empty));
 
-        debug_assert_eq!(self.entries.len(), prev_len + entries_num);
+        debug_assert_eq!(self.entries.len(), prev_len + additional);
     }
 
     fn insert_at(&mut self, idx: usize, value: T) -> I {
@@ -661,10 +663,10 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_capacity_too_large_in_grow() {
+    fn test_capacity_too_large_in_reserve_exact() {
         use std::usize;
         let mut slab = Slab::<usize, usize>::with_capacity(100);
-        slab.grow(usize::MAX - 100);
+        slab.reserve_exact(usize::MAX - 100);
     }
 
     #[test]
@@ -780,7 +782,7 @@ mod tests {
     }
 
     #[test]
-    fn test_grow() {
+    fn test_reserve_exact() {
         let mut slab = Slab::<u32, usize>::with_capacity(4);
         for i in 0..4 {
             slab.insert(i).unwrap();
@@ -788,7 +790,7 @@ mod tests {
 
         assert!(slab.insert(0).is_err());
 
-        slab.grow(3);
+        slab.reserve_exact(3);
 
         let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
         assert_eq!(vals, vec![0, 1, 2, 3]);
