@@ -76,7 +76,7 @@ impl<T, I> Slab<T, I> {
     }
 
     /// Returns the number of values stored by the `Slab`
-    pub fn count(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.len
     }
 
@@ -610,17 +610,17 @@ mod tests {
         let t0 = slab.insert(123).unwrap();
         let t1 = slab.insert(456).unwrap();
 
-        assert!(slab.count() == 2);
+        assert!(slab.len() == 2);
         assert!(slab.available() == 14);
 
         slab.remove(t0);
 
-        assert!(slab.count() == 1, "actual={}", slab.count());
+        assert!(slab.len() == 1, "actual={}", slab.len());
         assert!(slab.available() == 15);
 
         slab.remove(t1);
 
-        assert!(slab.count() == 0);
+        assert!(slab.len() == 0);
         assert!(slab.available() == 16);
 
         let _ = slab[t1];
@@ -647,7 +647,7 @@ mod tests {
         assert!(slab.remove(t0).unwrap() == 456);
         assert!(slab.remove(t1).unwrap() == 789);
 
-        assert!(slab.count() == 0);
+        assert!(slab.len() == 0);
     }
 
     #[test]
@@ -713,7 +713,7 @@ mod tests {
         assert!(slab.entry(tok + 1).is_none());
 
         assert_eq!(slab[tok], 6);
-        assert_eq!(slab.count(), 1);
+        assert_eq!(slab.len(), 1);
     }
 
     #[test]
@@ -741,7 +741,7 @@ mod tests {
         let tok1 = slab.insert(0).unwrap();
         let tok2 = slab.insert(1).unwrap();
         slab.retain(|x| x % 2 == 0);
-        assert_eq!(slab.count(), 1);
+        assert_eq!(slab.len(), 1);
         assert_eq!(slab[tok1], 0);
         assert_eq!(slab.contains(tok2), false);
     }
