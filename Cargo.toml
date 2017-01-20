@@ -10,6 +10,7 @@ homepage = "https://github.com/carllerche/slab"
 repository = "https://github.com/carllerche/slab"
 readme = "README.md"
 keywords = ["slab", "allocator"]
+categories = ["memory-management"]
 exclude = [
     ".gitignore",
     ".travis.yml",
