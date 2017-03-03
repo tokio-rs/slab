@@ -348,7 +348,7 @@ impl<'a, T, I: From<usize> + Into<usize>> Entry<'a, T, I> {
 
     /// Remove and return the value stored in the entry
     pub fn remove(self) -> T {
-        let next = self.slab.next;
+        let next = mem::replace(&mut self.slab.next, self.idx);
 
         if let Some(v) = self.slab.replace(self.idx, Slot::Empty(next)) {
             self.slab.len -= 1;
@@ -833,5 +833,19 @@ mod tests {
 
         let vals: Vec<u32> = slab.iter().map(|r| *r).collect();
         assert_eq!(vals, vec![]);
+    }
+
+    #[test]
+    fn test_lifo() {
+        let mut slab = Slab::<u32, usize>::with_capacity(4);
+        let idx0 = slab.insert(0).unwrap();
+        let idx1 = slab.insert(0).unwrap();
+        let idx2 = slab.insert(0).unwrap();
+        slab.remove(idx2).unwrap();
+        slab.remove(idx0).unwrap();
+        slab.remove(idx1).unwrap();
+        assert_eq!(slab.insert(1).unwrap(), idx1);
+        assert_eq!(slab.insert(1).unwrap(), idx0);
+        assert_eq!(slab.insert(1).unwrap(), idx2);
     }
 }
