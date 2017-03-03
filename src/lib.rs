@@ -128,6 +128,34 @@ impl<T, I: Into<usize> + From<usize>> Slab<T, I> {
         }
     }
 
+    /// Get a reference to the value associated with the given token
+    ///
+    /// # Safety
+    ///
+    /// This is unsafe due to ignored runtime checks
+    pub unsafe fn get_unchecked(&self, idx: I) -> &T {
+        let idx: usize = idx.into();
+
+        match *self.entries.get_unchecked(idx) {
+            Slot::Filled(ref val) => val,
+            _ => panic!("Invalid slot"),
+        }
+    }
+
+    /// Get a mutable reference to the value associated with the given token
+    ///
+    /// # Safety
+    ///
+    /// This is unsafe due to ignored runtime checks
+    pub unsafe fn get_unchecked_mut(&mut self, idx: I) -> &mut T {
+        let idx: usize = idx.into();
+
+        match *self.entries.get_unchecked_mut(idx) {
+            Slot::Filled(ref mut v) => v,
+            _ => panic!("Invalid slot"),
+        }
+    }
+
     /// Insert a value into the slab, returning the associated token
     pub fn insert(&mut self, val: T) -> Result<I, T> {
         match self.vacant_entry() {
@@ -688,6 +716,9 @@ mod tests {
         assert_eq!(slab.get(tok), Some(&5));
         assert_eq!(slab.get(1), None);
         assert_eq!(slab.get(23), None);
+        unsafe {
+            assert_eq!(*slab.get_unchecked(tok), 5);
+        }
     }
 
     #[test]
@@ -702,6 +733,11 @@ mod tests {
         assert_eq!(slab[tok], 12);
         assert_eq!(slab.get_mut(1), None);
         assert_eq!(slab.get_mut(23), None);
+        unsafe {
+            assert_eq!(*slab.get_unchecked_mut(tok), 12);
+            *slab.get_unchecked_mut(tok) = 13;
+            assert_eq!(*slab.get_unchecked_mut(tok), 13);
+        }
     }
 
     #[test]
