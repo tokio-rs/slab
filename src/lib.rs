@@ -101,7 +101,7 @@
 #![doc(html_root_url = "https://docs.rs/slab/0.4")]
 #![crate_name = "slab"]
 
-use std::{fmt, mem, usize};
+use std::{fmt, mem};
 use std::iter::IntoIterator;
 use std::ops;
 use std::marker::PhantomData;
@@ -160,7 +160,6 @@ pub struct Iter<'a, T: 'a> {
 }
 
 /// A mutable iterator over the values stored in the `Slab`
-#[derive(Debug)]
 pub struct IterMut<'a, T: 'a> {
     slab: *mut Slab<T>,
     curr: usize,
@@ -721,6 +720,15 @@ impl<T> fmt::Debug for Slab<T> where T: fmt::Debug {
                "Slab {{ len: {}, cap: {} }}",
                self.len,
                self.capacity())
+    }
+}
+
+impl<'a, T: 'a> fmt::Debug for IterMut<'a, T> where T: fmt::Debug {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("IterMut")
+            .field("slab", unsafe { &*self.slab })
+            .field("curr", &self.curr)
+            .finish()
     }
 }
 
