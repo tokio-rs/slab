@@ -812,6 +812,24 @@ impl<'a, T> VacantEntry<'a, T> {
     ///
     /// To get the key associated with the value, use `key` prior to calling
     /// `insert`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// let hello = {
+    ///     let entry = slab.vacant_entry();
+    ///     let key = entry.key();
+    ///
+    ///     entry.insert((key, "hello"));
+    ///     key
+    /// };
+    ///
+    /// assert_eq!(hello, slab[hello].0);
+    /// assert_eq!("hello", slab[hello].1);
+    /// ```
     pub fn insert(self, val: T) -> &'a mut T {
         self.slab.insert_at(self.key, val);
 
@@ -824,6 +842,24 @@ impl<'a, T> VacantEntry<'a, T> {
     /// Return the key associated with this entry.
     ///
     /// A value stored in this entry will be associated with this key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// let hello = {
+    ///     let entry = slab.vacant_entry();
+    ///     let key = entry.key();
+    ///
+    ///     entry.insert((key, "hello"));
+    ///     key
+    /// };
+    ///
+    /// assert_eq!(hello, slab[hello].0);
+    /// assert_eq!("hello", slab[hello].1);
+    /// ```
     pub fn key(&self) -> usize {
         self.key
     }
