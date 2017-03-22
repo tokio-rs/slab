@@ -151,27 +151,6 @@ fn reserve_exact_does_not_allocate_if_available() {
 }
 
 #[test]
-fn test_key_trait() {
-    #[derive(Debug, Eq, PartialEq)]
-    struct MyKey(usize);
-
-    impl From<usize> for MyKey {
-        fn from(i: usize) -> MyKey { MyKey(i) }
-    }
-
-    impl Into<usize> for MyKey {
-        fn into(self) -> usize { self.0 }
-    }
-
-    let mut slab = Slab::with_capacity_and_key_type(1);
-    let key: MyKey = slab.store(10);
-
-    assert_eq!(key, MyKey(0));
-    assert_eq!(slab[key], 10);
-}
-
-
-#[test]
 fn retain() {
     let mut slab = Slab::with_capacity(2);
 

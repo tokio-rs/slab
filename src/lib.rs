@@ -112,7 +112,7 @@ use std::marker::PhantomData;
 ///
 /// [module documentation]: index.html
 #[derive(Clone)]
-pub struct Slab<T, K = usize> {
+pub struct Slab<T> {
     // Chunk of memory
     entries: Vec<Entry<T>>,
 
@@ -122,8 +122,6 @@ pub struct Slab<T, K = usize> {
     // Offset of the next available slot in the slab. Set to the slab's
     // capacity when the slab is full.
     next: usize,
-
-    _marker: PhantomData<K>,
 }
 
 /// A handle to an empty slot in a `Slab`.
@@ -149,22 +147,22 @@ pub struct Slab<T, K = usize> {
 /// assert_eq!("hello", slab[hello].1);
 /// ```
 #[derive(Debug)]
-pub struct Slot<'a, T: 'a, K: 'a> {
-    slab: &'a mut Slab<T, K>,
+pub struct Slot<'a, T: 'a> {
+    slab: &'a mut Slab<T>,
     key: usize,
 }
 
 /// An iterator over the values stored in the `Slab`
 #[derive(Debug)]
-pub struct Iter<'a, T: 'a, K: 'a> {
-    slab: &'a Slab<T, K>,
+pub struct Iter<'a, T: 'a> {
+    slab: &'a Slab<T>,
     curr: usize,
 }
 
 /// A mutable iterator over the values stored in the `Slab`
 #[derive(Debug)]
-pub struct IterMut<'a, T: 'a, K: 'a> {
-    slab: *mut Slab<T, K>,
+pub struct IterMut<'a, T: 'a> {
+    slab: *mut Slab<T>,
     curr: usize,
     _marker: PhantomData<&'a mut ()>,
 }
@@ -175,7 +173,7 @@ enum Entry<T> {
     Occupied(T),
 }
 
-impl<T> Slab<T, usize> {
+impl<T> Slab<T> {
     /// Construct a new, empty `Slab`.
     ///
     /// The function does not allocate and the returned slab will have no
@@ -187,7 +185,7 @@ impl<T> Slab<T, usize> {
     /// # use slab::*;
     /// let slab: Slab<i32> = Slab::new();
     /// ```
-    pub fn new() -> Slab<T, usize> {
+    pub fn new() -> Slab<T> {
         Slab::with_capacity(0)
     }
 
@@ -218,47 +216,11 @@ impl<T> Slab<T, usize> {
     /// // ...but this may make the slab reallocate
     /// slab.store(11);
     /// ```
-    pub fn with_capacity(capacity: usize) -> Slab<T, usize> {
-        Slab::with_capacity_and_key_type(capacity)
-    }
-}
-
-impl<T, K> Slab<T, K> {
-    /// Construct a new, empty `Slab` with the specified capacity using a custom
-    /// key type.
-    ///
-    /// This function is identical to [with_capacity] except that it also allows
-    /// the slab to use a custom key type.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use slab::*;
-    /// #[derive(Debug, Eq, PartialEq)]
-    /// struct MyKey(usize);
-    ///
-    /// impl From<usize> for MyKey {
-    ///     fn from(i: usize) -> MyKey { MyKey(i) }
-    /// }
-    ///
-    /// impl Into<usize> for MyKey {
-    ///     fn into(self) -> usize { self.0 }
-    /// }
-    ///
-    /// let mut slab = Slab::with_capacity_and_key_type(1);
-    /// let key: MyKey = slab.store(10);
-    ///
-    /// assert_eq!(key, MyKey(0));
-    /// assert_eq!(slab[key], 10);
-    /// ```
-    ///
-    /// [with_capacity]: #with_capacity
-    pub fn with_capacity_and_key_type(capacity: usize) -> Slab<T, K> {
+    pub fn with_capacity(capacity: usize) -> Slab<T> {
         Slab {
             entries: Vec::with_capacity(capacity),
             next: 0,
             len: 0,
-            _marker: PhantomData,
         }
     }
 
@@ -470,7 +432,7 @@ impl<T, K> Slab<T, K> {
     /// assert_eq!(iterator.next(), Some(&2));
     /// assert_eq!(iterator.next(), None);
     /// ```
-    pub fn iter(&self) -> Iter<T, K> {
+    pub fn iter(&self) -> Iter<T> {
         Iter {
             slab: self,
             curr: 0,
@@ -500,16 +462,14 @@ impl<T, K> Slab<T, K> {
     /// assert_eq!(slab[key1], 2);
     /// assert_eq!(slab[key2], 3);
     /// ```
-    pub fn iter_mut(&mut self) -> IterMut<T, K> {
+    pub fn iter_mut(&mut self) -> IterMut<T> {
         IterMut {
-            slab: self as *mut Slab<T, K>,
+            slab: self as *mut Slab<T>,
             curr: 0,
             _marker: PhantomData,
         }
     }
-}
 
-impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
     /// Returns a reference to the value associated with the given key
     ///
     /// If the given key is not associated with a value, then `None` is
@@ -525,8 +485,8 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
     /// assert_eq!(slab.get(key), Some(&"hello"));
     /// assert_eq!(slab.get(123), None);
     /// ```
-    pub fn get(&self, key: K) -> Option<&T> {
-        match self.entries.get(key.into()) {
+    pub fn get(&self, key: usize) -> Option<&T> {
+        match self.entries.get(key) {
             Some(&Entry::Occupied(ref val)) => Some(val),
             _ => None,
         }
@@ -549,8 +509,8 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
     /// assert_eq!(slab[key], "world");
     /// assert_eq!(slab.get_mut(123), None);
     /// ```
-    pub fn get_mut(&mut self, key: K) -> Option<&mut T> {
-        match self.entries.get_mut(key.into()) {
+    pub fn get_mut(&mut self, key: usize) -> Option<&mut T> {
+        match self.entries.get_mut(key) {
             Some(&mut Entry::Occupied(ref mut val)) => Some(val),
             _ => None,
         }
@@ -572,8 +532,8 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
     ///     assert_eq!(slab.get_unchecked(key), &2);
     /// }
     /// ```
-    pub unsafe fn get_unchecked(&self, key: K) -> &T {
-        match *self.entries.get_unchecked(key.into()) {
+    pub unsafe fn get_unchecked(&self, key: usize) -> &T {
+        match *self.entries.get_unchecked(key) {
             Entry::Occupied(ref val) => val,
             _ => unreachable!(),
         }
@@ -598,8 +558,8 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
     ///
     /// assert_eq!(slab[key], 13);
     /// ```
-    pub unsafe fn get_unchecked_mut(&mut self, key: K) -> &mut T {
-        match *self.entries.get_unchecked_mut(key.into()) {
+    pub unsafe fn get_unchecked_mut(&mut self, key: usize) -> &mut T {
+        match *self.entries.get_unchecked_mut(key) {
             Entry::Occupied(ref mut val) => val,
             _ => unreachable!(),
         }
@@ -623,16 +583,16 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
     /// let key = slab.store("hello");
     /// assert_eq!(slab[key], "hello");
     /// ```
-    pub fn store(&mut self, val: T) -> K {
+    pub fn store(&mut self, val: T) -> usize {
         let key = self.next;
 
         self.store_at(key, val);
 
-        key.into()
+        key
     }
 
     /// Returns a handle to a vaccant slot allowing for further manipulation.
-    pub fn slot(&mut self) -> Slot<T, K> {
+    pub fn slot(&mut self) -> Slot<T> {
         Slot {
             key: self.next,
             slab: self,
@@ -664,9 +624,7 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
     ///
     /// The key is then released and may be associated with future stored
     /// values.
-    pub fn remove(&mut self, key: K) -> T {
-        let key = key.into();
-
+    pub fn remove(&mut self, key: usize) -> T {
         // Swap the entry at the provided value
         let prev = mem::replace(
             &mut self.entries[key],
@@ -687,8 +645,8 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
     }
 
     /// Returns `true` if a value is associated with the given key.
-    pub fn contains(&self, key: K) -> bool {
-        self.entries.get(key.into())
+    pub fn contains(&self, key: usize) -> bool {
+        self.entries.get(key)
             .map(|e| {
                 match *e {
                     Entry::Occupied(_) => true,
@@ -713,58 +671,51 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
             };
 
             if !keep {
-                self.remove(i.into());
+                self.remove(i);
             }
         }
     }
 }
 
-impl<T, K> ops::Index<K> for Slab<T, K>
-    where K: From<usize> + Into<usize>,
-{
+impl<T> ops::Index<usize> for Slab<T> {
     type Output = T;
 
-    fn index(&self, key: K) -> &T {
-        match self.entries[key.into()] {
+    fn index(&self, key: usize) -> &T {
+        match self.entries[key] {
             Entry::Occupied(ref v) => v,
             _ => panic!("invalid key"),
         }
     }
 }
 
-impl<T, K> ops::IndexMut<K> for Slab<T, K>
-    where K: From<usize> + Into<usize>,
-{
-    fn index_mut(&mut self, key: K) -> &mut T {
-        match self.entries[key.into()] {
+impl<T> ops::IndexMut<usize> for Slab<T> {
+    fn index_mut(&mut self, key: usize) -> &mut T {
+        match self.entries[key] {
             Entry::Occupied(ref mut v) => v,
             _ => panic!("invalid key"),
         }
     }
 }
 
-impl<'a, T, K> IntoIterator for &'a Slab<T, K> {
+impl<'a, T> IntoIterator for &'a Slab<T> {
     type Item = &'a T;
-    type IntoIter = Iter<'a, T, K>;
+    type IntoIter = Iter<'a, T>;
 
-    fn into_iter(self) -> Iter<'a, T, K> {
+    fn into_iter(self) -> Iter<'a, T> {
         self.iter()
     }
 }
 
-impl<'a, T, K> IntoIterator for &'a mut Slab<T, K> {
+impl<'a, T> IntoIterator for &'a mut Slab<T> {
     type Item = &'a mut T;
-    type IntoIter = IterMut<'a, T, K>;
+    type IntoIter = IterMut<'a, T>;
 
-    fn into_iter(self) -> IterMut<'a, T, K> {
+    fn into_iter(self) -> IterMut<'a, T> {
         self.iter_mut()
     }
 }
 
-impl<T, K> fmt::Debug for Slab<T, K>
-    where T: fmt::Debug,
-          K: fmt::Debug,
-{
+impl<T> fmt::Debug for Slab<T> where T: fmt::Debug {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt,
                "Slab {{ len: {}, cap: {} }}",
@@ -775,9 +726,7 @@ impl<T, K> fmt::Debug for Slab<T, K>
 
 // ===== Slot =====
 
-impl<'a, T, K> Slot<'a, T, K>
-    where K: From<usize> + Into<usize>,
-{
+impl<'a, T> Slot<'a, T> {
     /// Store a value in the slot, returning a mutable reference to the value.
     ///
     /// To get the key associated with the value, use `key` prior to calling
@@ -794,14 +743,14 @@ impl<'a, T, K> Slot<'a, T, K>
     /// Return the key associated with this slot.
     ///
     /// A value stored in this slot will be associated with this key.
-    pub fn key(&self) -> K {
-        self.key.into()
+    pub fn key(&self) -> usize {
+        self.key
     }
 }
 
 // ===== Iter =====
 
-impl<'a, T, K> Iterator for Iter<'a, T, K> {
+impl<'a, T> Iterator for Iter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<&'a T> {
@@ -820,7 +769,7 @@ impl<'a, T, K> Iterator for Iter<'a, T, K> {
 
 // ===== IterMut =====
 
-impl<'a, T, K> Iterator for IterMut<'a, T, K> {
+impl<'a, T> Iterator for IterMut<'a, T> {
     type Item = &'a mut T;
 
     fn next(&mut self) -> Option<&'a mut T> {
