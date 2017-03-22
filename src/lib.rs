@@ -33,17 +33,17 @@
 //! ```
 //!
 //! Sometimes it is useful to be able to associate the key with the value being
-//! inserted in the slab. This can be done with the `slot` API as such:
+//! inserted in the slab. This can be done with the `vacant_entry` API as such:
 //!
 //! ```
 //! # use slab::*;
 //! let mut slab = Slab::new();
 //!
 //! let hello = {
-//!     let slot = slab.slot();
-//!     let key = slot.key();
+//!     let entry = slab.vacant_entry();
+//!     let key = entry.key();
 //!
-//!     slot.insert((key, "hello"));
+//!     entry.insert((key, "hello"));
 //!     key
 //! };
 //!
@@ -125,10 +125,10 @@ pub struct Slab<T> {
     next: usize,
 }
 
-/// A handle to an empty slot in a `Slab`.
+/// A handle to an vacant entry in a `Slab`.
 ///
-/// `Slot` allows constructing values with the key that they will be assigned
-/// to.
+/// `VacantEntry` allows constructing values with the key that they will be
+/// assigned to.
 ///
 /// # Examples
 ///
@@ -137,10 +137,10 @@ pub struct Slab<T> {
 /// let mut slab = Slab::new();
 ///
 /// let hello = {
-///     let slot = slab.slot();
-///     let key = slot.key();
+///     let entry = slab.vacant_entry();
+///     let key = entry.key();
 ///
-///     slot.insert((key, "hello"));
+///     entry.insert((key, "hello"));
 ///     key
 /// };
 ///
@@ -148,7 +148,7 @@ pub struct Slab<T> {
 /// assert_eq!("hello", slab[hello].1);
 /// ```
 #[derive(Debug)]
-pub struct Slot<'a, T: 'a> {
+pub struct VacantEntry<'a, T: 'a> {
     slab: &'a mut Slab<T>,
     key: usize,
 }
@@ -593,9 +593,9 @@ impl<T> Slab<T> {
         key
     }
 
-    /// Returns a handle to a vaccant slot allowing for further manipulation.
-    pub fn slot(&mut self) -> Slot<T> {
-        Slot {
+    /// Returns a handle to a vacant entry allowing for further manipulation.
+    pub fn vacant_entry(&mut self) -> VacantEntry<T> {
+        VacantEntry {
             key: self.next,
             slab: self,
         }
@@ -734,10 +734,10 @@ impl<'a, T: 'a> fmt::Debug for IterMut<'a, T> where T: fmt::Debug {
     }
 }
 
-// ===== Slot =====
+// ===== VacantEntry =====
 
-impl<'a, T> Slot<'a, T> {
-    /// Insert a value in the slot, returning a mutable reference to the value.
+impl<'a, T> VacantEntry<'a, T> {
+    /// Insert a value in the entry, returning a mutable reference to the value.
     ///
     /// To get the key associated with the value, use `key` prior to calling
     /// `insert`.
@@ -750,9 +750,9 @@ impl<'a, T> Slot<'a, T> {
         }
     }
 
-    /// Return the key associated with this slot.
+    /// Return the key associated with this entry.
     ///
-    /// A value stored in this slot will be associated with this key.
+    /// A value stored in this entry will be associated with this key.
     pub fn key(&self) -> usize {
         self.key
     }

@@ -61,24 +61,24 @@ fn insert_get_remove_many() {
 }
 
 #[test]
-fn insert_with_slot() {
+fn insert_with_vacant_entry() {
     let mut slab = Slab::with_capacity(1);
     let key;
 
     {
-        let slot = slab.slot();
-        key = slot.key();
-        slot.insert(123);
+        let entry = slab.vacant_entry();
+        key = entry.key();
+        entry.insert(123);
     }
 
     assert_eq!(123, slab[key]);
 }
 
 #[test]
-fn get_slot_without_using() {
+fn get_vacant_entry_without_using() {
     let mut slab = Slab::<usize>::with_capacity(1);
-    let key = slab.slot().key();
-    assert_eq!(key, slab.slot().key());
+    let key = slab.vacant_entry().key();
+    assert_eq!(key, slab.vacant_entry().key());
 }
 
 #[test]
