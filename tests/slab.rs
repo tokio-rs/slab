@@ -185,12 +185,15 @@ fn iter() {
         slab.store(i);
     }
 
-    let vals: Vec<_> = slab.iter().map(|r| *r).collect();
+    let vals: Vec<_> = slab.iter().enumerate().map(|(i, (key, val))| {
+        assert_eq!(i, key);
+        *val
+    }).collect();
     assert_eq!(vals, vec![0, 1, 2, 3]);
 
     slab.remove(1);
 
-    let vals: Vec<_> = slab.iter().map(|r| *r).collect();
+    let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();
     assert_eq!(vals, vec![0, 2, 3]);
 }
 
@@ -202,20 +205,21 @@ fn iter_mut() {
         slab.store(i);
     }
 
-    for e in slab.iter_mut() {
+    for (i, (key, e)) in slab.iter_mut().enumerate() {
+        assert_eq!(i, key);
         *e = *e + 1;
     }
 
-    let vals: Vec<_> = slab.iter().map(|r| *r).collect();
+    let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();
     assert_eq!(vals, vec![1, 2, 3, 4]);
 
     slab.remove(2);
 
-    for e in slab.iter_mut() {
+    for (_, e) in slab.iter_mut() {
         *e = *e + 1;
     }
 
-    let vals: Vec<_> = slab.iter().map(|r| *r).collect();
+    let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();
     assert_eq!(vals, vec![2, 3, 5]);
 }
 
@@ -230,7 +234,7 @@ fn clear() {
     // clear full
     slab.clear();
 
-    let vals: Vec<_> = slab.iter().map(|r| *r).collect();
+    let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();
     assert!(vals.is_empty());
 
     assert_eq!(0, slab.len());
@@ -240,12 +244,12 @@ fn clear() {
         slab.store(i);
     }
 
-    let vals: Vec<_> = slab.iter().map(|r| *r).collect();
+    let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();
     assert_eq!(vals, vec![0, 1]);
 
     // clear half-filled
     slab.clear();
 
-    let vals: Vec<_> = slab.iter().map(|r| *r).collect();
+    let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();
     assert!(vals.is_empty());
 }

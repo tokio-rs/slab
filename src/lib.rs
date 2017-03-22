@@ -426,9 +426,9 @@ impl<T> Slab<T> {
     ///
     /// let mut iterator = slab.iter();
     ///
-    /// assert_eq!(iterator.next(), Some(&0));
-    /// assert_eq!(iterator.next(), Some(&1));
-    /// assert_eq!(iterator.next(), Some(&2));
+    /// assert_eq!(iterator.next(), Some((0, &0)));
+    /// assert_eq!(iterator.next(), Some((1, &1)));
+    /// assert_eq!(iterator.next(), Some((2, &2)));
     /// assert_eq!(iterator.next(), None);
     /// ```
     pub fn iter(&self) -> Iter<T> {
@@ -454,12 +454,14 @@ impl<T> Slab<T> {
     /// let key1 = slab.store(0);
     /// let key2 = slab.store(1);
     ///
-    /// for val in slab.iter_mut() {
-    ///     *val += 2;
+    /// for (key, val) in slab.iter_mut() {
+    ///     if key == key1 {
+    ///         *val += 2;
+    ///     }
     /// }
     ///
     /// assert_eq!(slab[key1], 2);
-    /// assert_eq!(slab[key2], 3);
+    /// assert_eq!(slab[key2], 1);
     /// ```
     pub fn iter_mut(&mut self) -> IterMut<T> {
         IterMut {
@@ -697,7 +699,7 @@ impl<T> ops::IndexMut<usize> for Slab<T> {
 }
 
 impl<'a, T> IntoIterator for &'a Slab<T> {
-    type Item = &'a T;
+    type Item = (usize, &'a T);
     type IntoIter = Iter<'a, T>;
 
     fn into_iter(self) -> Iter<'a, T> {
@@ -706,7 +708,7 @@ impl<'a, T> IntoIterator for &'a Slab<T> {
 }
 
 impl<'a, T> IntoIterator for &'a mut Slab<T> {
-    type Item = &'a mut T;
+    type Item = (usize, &'a mut T);
     type IntoIter = IterMut<'a, T>;
 
     fn into_iter(self) -> IterMut<'a, T> {
@@ -759,15 +761,15 @@ impl<'a, T> Slot<'a, T> {
 // ===== Iter =====
 
 impl<'a, T> Iterator for Iter<'a, T> {
-    type Item = &'a T;
+    type Item = (usize, &'a T);
 
-    fn next(&mut self) -> Option<&'a T> {
+    fn next(&mut self) -> Option<(usize, &'a T)> {
         while self.curr < self.slab.entries.len() {
             let curr = self.curr;
             self.curr += 1;
 
             if let Entry::Occupied(ref v) = self.slab.entries[curr] {
-                return Some(v);
+                return Some((curr, v));
             }
         }
 
@@ -778,16 +780,16 @@ impl<'a, T> Iterator for Iter<'a, T> {
 // ===== IterMut =====
 
 impl<'a, T> Iterator for IterMut<'a, T> {
-    type Item = &'a mut T;
+    type Item = (usize, &'a mut T);
 
-    fn next(&mut self) -> Option<&'a mut T> {
+    fn next(&mut self) -> Option<(usize, &'a mut T)> {
         unsafe {
             while self.curr < (*self.slab).entries.len() {
                 let curr = self.curr;
                 self.curr += 1;
 
                 if let Entry::Occupied(ref mut v) = (*self.slab).entries[curr] {
-                    return Some(v);
+                    return Some((curr, v));
                 }
             }
 
