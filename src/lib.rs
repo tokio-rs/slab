@@ -12,7 +12,7 @@
 //!
 //! It is important to note that keys may be reused. In other words, once a
 //! value associated with a given key is removed from a slab, that key may be
-//! returned from future calls to `store`.
+//! returned from future calls to `insert`.
 //!
 //! # Examples
 //!
@@ -22,8 +22,8 @@
 //! # use slab::*;
 //! let mut slab = Slab::new();
 //!
-//! let hello = slab.store("hello");
-//! let world = slab.store("world");
+//! let hello = slab.insert("hello");
+//! let world = slab.insert("world");
 //!
 //! assert_eq!(slab[hello], "hello");
 //! assert_eq!(slab[world], "world");
@@ -33,7 +33,7 @@
 //! ```
 //!
 //! Sometimes it is useful to be able to associate the key with the value being
-//! stored in the slab. This can be done with the `slot` API as such:
+//! inserted in the slab. This can be done with the `slot` API as such:
 //!
 //! ```
 //! # use slab::*;
@@ -43,7 +43,7 @@
 //!     let slot = slab.slot();
 //!     let key = slot.key();
 //!
-//!     slot.store((key, "hello"));
+//!     slot.insert((key, "hello"));
 //!     key
 //! };
 //!
@@ -53,7 +53,7 @@
 //!
 //! It is generally a good idea to specify the desired capacity of a slab at
 //! creation time. Note that `Slab` will grow the internal capacity when
-//! attempting to store a new value once the existing capacity has been reached.
+//! attempting to insert a new value once the existing capacity has been reached.
 //! To avoid this, add a check.
 //!
 //! ```
@@ -66,23 +66,24 @@
 //!     panic!("slab full");
 //! }
 //!
-//! slab.store("the slab is not at capacity yet");
+//! slab.insert("the slab is not at capacity yet");
 //! ```
 //!
 //! # Capacity and reallocation
 //!
 //! The capacity of a slab is the amount of space allocated for any future
-//! values that will be stored in the slab. This is not to be confused with the
-//! *length* of the slab, which specifies the number of actual values currently
-//! being stored. If a slab's length is equal to its capacity, the next value
-//! stored into the slab will require growing the slab by reallocating.
+//! values that will be inserted in the slab. This is not to be confused with
+//! the *length* of the slab, which specifies the number of actual values
+//! currently being inserted. If a slab's length is equal to its capacity, the
+//! next value inserted into the slab will require growing the slab by
+//! reallocating.
 //!
 //! For example, a slab with capacity 10 and length 0 would be an empty slab
 //! with space for 10 more stored values. Storing 10 or fewer elements into the
 //! slab will not change its capacity or cause reallocation to occur. However,
-//! if the slab length is increased to 11 (due to another `store`), it will have
-//! to reallocate, which can be slow. For this reason, it is recommended to use
-//! [`Slab::with_capacity`] whenever possible to specify how many values the
+//! if the slab length is increased to 11 (due to another `insert`), it will
+//! have to reallocate, which can be slow. For this reason, it is recommended to
+//! use [`Slab::with_capacity`] whenever possible to specify how many values the
 //! slab is expected to store.
 //!
 //! # Implementation
@@ -139,7 +140,7 @@ pub struct Slab<T> {
 ///     let slot = slab.slot();
 ///     let key = slot.key();
 ///
-///     slot.store((key, "hello"));
+///     slot.insert((key, "hello"));
 ///     key
 /// };
 ///
@@ -176,7 +177,7 @@ impl<T> Slab<T> {
     /// Construct a new, empty `Slab`.
     ///
     /// The function does not allocate and the returned slab will have no
-    /// capacity until `store` is called or capacity is explicitly reserved.
+    /// capacity until `insert` is called or capacity is explicitly reserved.
     ///
     /// # Examples
     ///
@@ -209,11 +210,11 @@ impl<T> Slab<T> {
     ///
     /// // These are all done without reallocating...
     /// for i in 0..10 {
-    ///     slab.store(i);
+    ///     slab.insert(i);
     /// }
     ///
     /// // ...but this may make the slab reallocate
-    /// slab.store(11);
+    /// slab.insert(11);
     /// ```
     pub fn with_capacity(capacity: usize) -> Slab<T> {
         Slab {
@@ -258,7 +259,7 @@ impl<T> Slab<T> {
     /// ```
     /// # use slab::*;
     /// let mut slab = Slab::new();
-    /// slab.store("hello");
+    /// slab.insert("hello");
     /// slab.reserve(10);
     /// assert!(slab.capacity() >= 11);
     /// ```
@@ -294,7 +295,7 @@ impl<T> Slab<T> {
     /// ```
     /// # use slab::*;
     /// let mut slab = Slab::new();
-    /// slab.store("hello");
+    /// slab.insert("hello");
     /// slab.reserve_exact(10);
     /// assert!(slab.capacity() >= 11);
     /// ```
@@ -322,7 +323,7 @@ impl<T> Slab<T> {
     /// let mut slab = Slab::with_capacity(10);
     ///
     /// for i in 0..3 {
-    ///     slab.store(i);
+    ///     slab.insert(i);
     /// }
     ///
     /// assert_eq!(slab.capacity(), 10);
@@ -338,7 +339,7 @@ impl<T> Slab<T> {
     /// let mut slab = Slab::with_capacity(10);
     ///
     /// for i in 0..3 {
-    ///     slab.store(i);
+    ///     slab.insert(i);
     /// }
     ///
     /// slab.remove(0);
@@ -361,7 +362,7 @@ impl<T> Slab<T> {
     /// let mut slab = Slab::new();
     ///
     /// for i in 0..3 {
-    ///     slab.store(i);
+    ///     slab.insert(i);
     /// }
     ///
     /// slab.clear();
@@ -382,7 +383,7 @@ impl<T> Slab<T> {
     /// let mut slab = Slab::new();
     ///
     /// for i in 0..3 {
-    ///     slab.store(i);
+    ///     slab.insert(i);
     /// }
     ///
     /// assert_eq!(3, slab.len());
@@ -400,7 +401,7 @@ impl<T> Slab<T> {
     /// let mut slab = Slab::new();
     /// assert!(slab.is_empty());
     ///
-    /// slab.store(1);
+    /// slab.insert(1);
     /// assert!(!slab.is_empty());
     /// ```
     pub fn is_empty(&self) -> bool {
@@ -421,7 +422,7 @@ impl<T> Slab<T> {
     /// let mut slab = Slab::new();
     ///
     /// for i in 0..3 {
-    ///     slab.store(i);
+    ///     slab.insert(i);
     /// }
     ///
     /// let mut iterator = slab.iter();
@@ -451,8 +452,8 @@ impl<T> Slab<T> {
     /// # use slab::*;
     /// let mut slab = Slab::new();
     ///
-    /// let key1 = slab.store(0);
-    /// let key2 = slab.store(1);
+    /// let key1 = slab.insert(0);
+    /// let key2 = slab.insert(1);
     ///
     /// for (key, val) in slab.iter_mut() {
     ///     if key == key1 {
@@ -481,7 +482,7 @@ impl<T> Slab<T> {
     /// ```
     /// # use slab::*;
     /// let mut slab = Slab::new();
-    /// let key = slab.store("hello");
+    /// let key = slab.insert("hello");
     ///
     /// assert_eq!(slab.get(key), Some(&"hello"));
     /// assert_eq!(slab.get(123), None);
@@ -503,7 +504,7 @@ impl<T> Slab<T> {
     /// ```
     /// # use slab::*;
     /// let mut slab = Slab::new();
-    /// let key = slab.store("hello");
+    /// let key = slab.insert("hello");
     ///
     /// *slab.get_mut(key).unwrap() = "world";
     ///
@@ -527,7 +528,7 @@ impl<T> Slab<T> {
     /// ```
     /// # use slab::*;
     /// let mut slab = Slab::new();
-    /// let key = slab.store(2);
+    /// let key = slab.insert(2);
     ///
     /// unsafe {
     ///     assert_eq!(slab.get_unchecked(key), &2);
@@ -550,7 +551,7 @@ impl<T> Slab<T> {
     /// ```
     /// # use slab::*;
     /// let mut slab = Slab::new();
-    /// let key = slab.store(2);
+    /// let key = slab.insert(2);
     ///
     /// unsafe {
     ///     let val = slab.get_unchecked_mut(key);
@@ -566,7 +567,7 @@ impl<T> Slab<T> {
         }
     }
 
-    /// Store a value in the slab, returning key assigned to the value
+    /// Insert a value in the slab, returning key assigned to the value
     ///
     /// The returned key can later be used to retrieve or remove the value using indexed
     /// lookup and `remove`. Additional capacity is allocated if needed. See
@@ -581,13 +582,13 @@ impl<T> Slab<T> {
     /// ```
     /// # use slab::*;
     /// let mut slab = Slab::new();
-    /// let key = slab.store("hello");
+    /// let key = slab.insert("hello");
     /// assert_eq!(slab[key], "hello");
     /// ```
-    pub fn store(&mut self, val: T) -> usize {
+    pub fn insert(&mut self, val: T) -> usize {
         let key = self.next;
 
-        self.store_at(key, val);
+        self.insert_at(key, val);
 
         key
     }
@@ -600,8 +601,7 @@ impl<T> Slab<T> {
         }
     }
 
-    /// Store the value at the given key
-    fn store_at(&mut self, key: usize, val: T) {
+    fn insert_at(&mut self, key: usize, val: T) {
         self.len += 1;
 
         if key == self.entries.len() {
@@ -737,12 +737,12 @@ impl<'a, T: 'a> fmt::Debug for IterMut<'a, T> where T: fmt::Debug {
 // ===== Slot =====
 
 impl<'a, T> Slot<'a, T> {
-    /// Store a value in the slot, returning a mutable reference to the value.
+    /// Insert a value in the slot, returning a mutable reference to the value.
     ///
     /// To get the key associated with the value, use `key` prior to calling
-    /// `store`.
-    pub fn store(self, val: T) -> &'a mut T {
-        self.slab.store_at(self.key, val);
+    /// `insert`.
+    pub fn insert(self, val: T) -> &'a mut T {
+        self.slab.insert_at(self.key, val);
 
         match self.slab.entries[self.key] {
             Entry::Occupied(ref mut v) => v,

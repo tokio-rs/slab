@@ -3,11 +3,11 @@ extern crate slab;
 use slab::*;
 
 #[test]
-fn store_get_remove_one() {
+fn insert_get_remove_one() {
     let mut slab = Slab::new();
     assert!(slab.is_empty());
 
-    let key = slab.store(10);
+    let key = slab.insert(10);
 
     assert_eq!(slab[key], 10);
     assert_eq!(slab.get(key), Some(&10));
@@ -20,18 +20,18 @@ fn store_get_remove_one() {
 }
 
 #[test]
-fn store_get_many() {
+fn insert_get_many() {
     let mut slab = Slab::with_capacity(10);
 
     for i in 0..10 {
-        let key = slab.store(i + 10);
+        let key = slab.insert(i + 10);
         assert_eq!(slab[key], i + 10);
     }
 
     assert_eq!(slab.capacity(), 10);
 
     // Storing another one grows the slab
-    let key = slab.store(20);
+    let key = slab.insert(20);
     assert_eq!(slab[key], 20);
 
     // Capacity grows by 2x
@@ -39,7 +39,7 @@ fn store_get_many() {
 }
 
 #[test]
-fn store_get_remove_many() {
+fn insert_get_remove_many() {
     let mut slab = Slab::with_capacity(10);
     let mut keys = vec![];
 
@@ -47,7 +47,7 @@ fn store_get_remove_many() {
         for j in 0..10 {
             let val = (i * 10) + j;
 
-            let key = slab.store(val);
+            let key = slab.insert(val);
             keys.push((key, val));
             assert_eq!(slab[key], val);
         }
@@ -61,14 +61,14 @@ fn store_get_remove_many() {
 }
 
 #[test]
-fn store_with_slot() {
+fn insert_with_slot() {
     let mut slab = Slab::with_capacity(1);
     let key;
 
     {
         let slot = slab.slot();
         key = slot.key();
-        slot.store(123);
+        slot.insert(123);
     }
 
     assert_eq!(123, slab[key]);
@@ -92,7 +92,7 @@ fn invalid_get_panics() {
 #[should_panic]
 fn double_remove_panics() {
     let mut slab = Slab::<usize>::with_capacity(1);
-    let key = slab.store(123);
+    let key = slab.insert(123);
     slab.remove(key);
     slab.remove(key);
 }
@@ -107,7 +107,7 @@ fn invalid_remove_panics() {
 #[test]
 fn slab_get_mut() {
     let mut slab = Slab::new();
-    let key = slab.store(1);
+    let key = slab.insert(1);
 
     slab[key] = 2;
     assert_eq!(slab[key], 2);
@@ -122,7 +122,7 @@ fn reserve_does_not_allocate_if_available() {
     let mut keys = vec![];
 
     for i in 0..10 {
-        keys.push(slab.store(i));
+        keys.push(slab.insert(i));
     }
 
     for key in keys {
@@ -139,7 +139,7 @@ fn reserve_exact_does_not_allocate_if_available() {
     let mut keys = vec![];
 
     for i in 0..10 {
-        keys.push(slab.store(i));
+        keys.push(slab.insert(i));
     }
 
     for key in keys {
@@ -154,8 +154,8 @@ fn reserve_exact_does_not_allocate_if_available() {
 fn retain() {
     let mut slab = Slab::with_capacity(2);
 
-    let key1 = slab.store(0);
-    let key2 = slab.store(1);
+    let key1 = slab.insert(0);
+    let key2 = slab.insert(1);
 
     slab.retain(|x| *x % 2 == 0);
 
@@ -164,14 +164,14 @@ fn retain() {
     assert!(!slab.contains(key2));
 
     // Ensure consistency is retained
-    let key = slab.store(123);
+    let key = slab.insert(123);
     assert_eq!(key, key2);
 
     assert_eq!(2, slab.len());
     assert_eq!(2, slab.capacity());
 
     // Inserting another element grows
-    let key = slab.store(345);
+    let key = slab.insert(345);
     assert_eq!(key, 2);
 
     assert_eq!(4, slab.capacity());
@@ -182,7 +182,7 @@ fn iter() {
     let mut slab = Slab::new();
 
     for i in 0..4 {
-        slab.store(i);
+        slab.insert(i);
     }
 
     let vals: Vec<_> = slab.iter().enumerate().map(|(i, (key, val))| {
@@ -202,7 +202,7 @@ fn iter_mut() {
     let mut slab = Slab::new();
 
     for i in 0..4 {
-        slab.store(i);
+        slab.insert(i);
     }
 
     for (i, (key, e)) in slab.iter_mut().enumerate() {
@@ -228,7 +228,7 @@ fn clear() {
     let mut slab = Slab::new();
 
     for i in 0..4 {
-        slab.store(i);
+        slab.insert(i);
     }
 
     // clear full
@@ -241,7 +241,7 @@ fn clear() {
     assert_eq!(4, slab.capacity());
 
     for i in 0..2 {
-        slab.store(i);
+        slab.insert(i);
     }
 
     let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();
