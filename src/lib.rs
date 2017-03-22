@@ -661,11 +661,11 @@ impl<T> Slab<T> {
     /// This method operates in place and preserves the order of the retained
     /// elements.
     pub fn retain<F>(&mut self, mut f: F)
-        where F: FnMut(&T) -> bool
+        where F: FnMut(&mut T) -> bool
     {
         for i in 0..self.entries.len() {
             let keep = match self.entries[i] {
-                Entry::Occupied(ref v) => f(v),
+                Entry::Occupied(ref mut v) => f(v),
                 _ => true,
             };
 
