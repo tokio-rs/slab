@@ -79,6 +79,10 @@
 //! If there are no more available slots in the stack, then `Vec::reserve(1)` is
 //! called and a new slot is created.
 
+#![deny(warnings, missing_docs, missing_debug_implementations)]
+#![doc(html_root_url = "https://docs.rs/slab/0.4")]
+#![crate_name = "slab"]
+
 use std::{fmt, mem, usize};
 use std::iter::IntoIterator;
 use std::ops;
@@ -100,18 +104,22 @@ pub struct Slab<T, K = usize> {
     _marker: PhantomData<K>,
 }
 
+/// A handle to an empty slot in a `Slab`.
+#[derive(Debug)]
 pub struct Slot<'a, T: 'a, K: 'a> {
     slab: &'a mut Slab<T, K>,
     key: usize,
 }
 
 /// An iterator over the values stored in the `Slab`
+#[derive(Debug)]
 pub struct Iter<'a, T: 'a, K: 'a> {
     slab: &'a Slab<T, K>,
     curr: usize,
 }
 
 /// A mutable iterator over the values stored in the `Slab`
+#[derive(Debug)]
 pub struct IterMut<'a, T: 'a, K: 'a> {
     slab: *mut Slab<T, K>,
     curr: usize,
@@ -125,6 +133,17 @@ enum Entry<T> {
 }
 
 impl<T> Slab<T, usize> {
+    /// Construct a new, empty, `Slab`.
+    ///
+    /// The function does not allocate and the returned slab will have no
+    /// capacity until `store` is called or capacity is explicitly reserved.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let slab: Slab<i32> = Slab::new();
+    /// ```
     pub fn new() -> Slab<T, usize> {
         Slab::with_capacity(0)
     }
@@ -160,13 +179,11 @@ impl<T, K> Slab<T, K> {
     /// Reserves capacity for at least `additional` more values to be stored
     /// without allocating.
     ///
-    /// If the `Slab` is able to store at least `additional` more values, then a
-    /// call to `reserve` will do nothing. When additional storage space is
-    /// needed, `Slab` will allocate a new slab of memory that is able to store
-    /// the current values being stored as well as at least `additional` more
-    /// values. The existing values will be copied to the new slab of memory. As
-    /// such, if the slab is already large, a call to `reserve` can end up being
-    /// relatively expensive.
+    /// `reserve` does nothing if the slab already has sufficient capcity for
+    /// `additional` more values. If more capacity is required, a new segment of
+    /// memory will be allocated and all existing values will be copied into it.
+    /// As such, if the slab is already very large, a call to `reserve` can end
+    /// up being expensive.
     ///
     /// The slab may reserve more than `additional` extra space in order to
     /// avoid frequent reallocations. Use `reserve_exact` instead to guarantee
@@ -179,7 +196,11 @@ impl<T, K> Slab<T, K> {
     /// # Examples
     ///
     /// ```
-    /// println!("hello");
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    /// slab.store("hello");
+    /// slab.reserve(10);
+    /// assert!(slab.capacity() >= 11);
     /// ```
     pub fn reserve(&mut self, additional: usize) {
         let available = self.entries.len() - self.len;
@@ -191,6 +212,32 @@ impl<T, K> Slab<T, K> {
         self.entries.reserve(additional - available);
     }
 
+    /// Reserves the minimum capacity required to store exactly `additional`
+    /// more values.
+    ///
+    /// `reserve_exact` does nothing if the slab already has sufficient capacity
+    /// for `additional` more valus. If more capacity is required, a new segment
+    /// of memory will be allocated and all existing values will be copied into
+    /// it.  As such, if the slab is already very large, a call to `reserve` can
+    /// end up being expensive.
+    ///
+    /// Note that the allocator may give the slab more space than it requests.
+    /// Therefore capacity can not be relied upon to be precisely minimal.
+    /// Prefer `reserve` if future insertions are expected.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new capacity overflows `usize`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    /// slab.store("hello");
+    /// slab.reserve_exact(10);
+    /// assert!(slab.capacity() >= 11);
+    /// ```
     pub fn reserve_exact(&mut self, additional: usize) {
         let available = self.entries.len() - self.len;
 
@@ -201,26 +248,111 @@ impl<T, K> Slab<T, K> {
         self.entries.reserve_exact(additional - available);
     }
 
+    /// Shrinks the capacity of the slab as much as possible.
+    ///
+    /// It will drop down as close as possible to the length but the allocator
+    /// may still inform the vector that there is space for a few more elements.
+    /// Also, since values are not moved, the slab cannot shrink past any stored
+    /// values.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::with_capacity(10);
+    ///
+    /// for i in 0..3 {
+    ///     slab.store(i);
+    /// }
+    ///
+    /// assert_eq!(slab.capacity(), 10);
+    /// slab.shrink_to_fit();
+    /// assert!(slab.capacity() >= 3);
+    /// ```
+    ///
+    /// In this case, even though two values are removed, the slab cannot shrink
+    /// past the last value.
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::with_capacity(10);
+    ///
+    /// for i in 0..3 {
+    ///     slab.store(i);
+    /// }
+    ///
+    /// slab.remove(0);
+    /// slab.remove(1);
+    ///
+    /// assert_eq!(slab.capacity(), 10);
+    /// slab.shrink_to_fit();
+    /// assert!(slab.capacity() >= 3);
+    /// ```
     pub fn shrink_to_fit(&mut self) {
         self.entries.shrink_to_fit();
     }
 
+    /// Clear the slab of all values
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// for i in 0..3 {
+    ///     slab.store(i);
+    /// }
+    ///
+    /// slab.clear();
+    /// assert!(slab.is_empty());
+    /// ```
     pub fn clear(&mut self) {
         self.entries.clear();
         self.len = 0;
         self.next = 0;
     }
 
-    /// Returns the number of values stored by the `Slab`
+    /// Returns the number of stored values
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// for i in 0..3 {
+    ///     slab.store(i);
+    /// }
+    ///
+    /// assert_eq!(3, slab.len());
+    /// ```
     pub fn len(&self) -> usize {
         self.len
     }
 
-    /// Returns true if the `Slab` is storing no values
+    /// Returns `true` if no values are stored in the slab
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    /// assert!(slab.is_empty());
+    ///
+    /// slab.store(1);
+    /// assert!(!slab.is_empty());
+    /// ```
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
+    /// Returns an iterator over the slab
+    ///
+    /// This function should generally be **avoided** as it is not efficient.
+    /// Iterators must iterate over every slot in the slab even if it is
+    /// vaccant. As such, a slab with a capacity of 1 million but only one
+    /// stored value must still iterate the million slots.
     pub fn iter(&self) -> Iter<T, K> {
         Iter {
             slab: self,
@@ -228,6 +360,12 @@ impl<T, K> Slab<T, K> {
         }
     }
 
+    /// Returns an iterator that allows modifying each value.
+    ///
+    /// This function should generally be **avoided** as it is not efficient.
+    /// Iterators must iterate over every slot in the slab even if it is
+    /// vaccant. As such, a slab with a capacity of 1 million but only one
+    /// stored value must still iterate the million slots.
     pub fn iter_mut(&mut self) -> IterMut<T, K> {
         IterMut {
             slab: self as *mut Slab<T, K>,
@@ -238,7 +376,7 @@ impl<T, K> Slab<T, K> {
 }
 
 impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
-    /// Get a reference to the value associated with the given token
+    /// Returns a reference to the value associated with the given key
     pub fn get(&self, key: K) -> Option<&T> {
         match self.entries[key.into()] {
             Entry::Occupied(ref val) => Some(val),
@@ -246,7 +384,7 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
         }
     }
 
-    /// Get a mutable reference to the value associated with the given token
+    /// Returns a mutable reference to the value associated with the given key
     pub fn get_mut(&mut self, key: K) -> Option<&mut T> {
         match self.entries[key.into()] {
             Entry::Occupied(ref mut val) => Some(val),
@@ -254,6 +392,10 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
         }
     }
 
+    /// Returns a reference to the value associated with the given key without
+    /// performing bounds checking.
+    ///
+    /// This function should be used with care.
     pub unsafe fn get_unchecked(&self, key: K) -> &T {
         match *self.entries.get_unchecked(key.into()) {
             Entry::Occupied(ref val) => val,
@@ -261,6 +403,10 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
         }
     }
 
+    /// Returns a mutable reference to the value associated with the given key
+    /// without performing bounds checking.
+    ///
+    /// This function should be used with care.
     pub unsafe fn get_unchecked_mut(&mut self, key: K) -> &mut T {
         match *self.entries.get_unchecked_mut(key.into()) {
             Entry::Occupied(ref mut val) => val,
@@ -268,6 +414,7 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
         }
     }
 
+    /// Store a value in the slab, returning key assigned to the value
     pub fn store(&mut self, val: T) -> K {
         let key = self.next;
 
@@ -276,6 +423,7 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
         key.into()
     }
 
+    /// Returns a handle to a vaccant slot allowing for further manipulation.
     pub fn slot(&mut self) -> Slot<T, K> {
         Slot {
             key: self.next,
@@ -304,7 +452,10 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
         }
     }
 
-    /// Releases the given slot
+    /// Removes and returns the value associated with the given key.
+    ///
+    /// The key is then released and may be associated with future stored
+    /// values.
     pub fn remove(&mut self, key: K) -> T {
         let key = key.into();
 
@@ -327,6 +478,7 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
         }
     }
 
+    /// Returns `true` if a value is associated with the given key.
     pub fn contains(&self, key: K) -> bool {
         self.entries.get(key.into())
             .map(|e| {
@@ -418,6 +570,10 @@ impl<T, K> fmt::Debug for Slab<T, K>
 impl<'a, T, K> Slot<'a, T, K>
     where K: From<usize> + Into<usize>,
 {
+    /// Store a value in the slot, returning a mutable reference to the value.
+    ///
+    /// To get the key associated with the value, use `key` prior to calling
+    /// `store`.
     pub fn store(self, val: T) -> &'a mut T {
         self.slab.store_at(self.key, val);
 
@@ -427,6 +583,9 @@ impl<'a, T, K> Slot<'a, T, K>
         }
     }
 
+    /// Return the key associated with this slot.
+    ///
+    /// A value stored in this slot will be associated with this key.
     pub fn key(&self) -> K {
         self.key.into()
     }

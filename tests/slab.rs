@@ -153,7 +153,7 @@ fn reserve_exact_does_not_allocate_if_available() {
 #[test]
 fn test_key_trait() {
     #[derive(Debug, Eq, PartialEq)]
-    pub struct MyKey(usize);
+    struct MyKey(usize);
 
     impl From<usize> for MyKey {
         fn from(i: usize) -> MyKey { MyKey(i) }
