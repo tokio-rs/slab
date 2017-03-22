@@ -69,6 +69,22 @@
 //! slab.store("the slab is not at capacity yet");
 //! ```
 //!
+//! # Capacity and reallocation
+//!
+//! The capacity of a slab is the amount of space allocated for any future
+//! values that will be stored in the slab. This is not to be confused with the
+//! *length* of the slab, which specifies the number of actual values currently
+//! being stored. If a slab's length is equal to its capacity, the next value
+//! stored into the slab will require growing the slab by reallocating.
+//!
+//! For example, a slab with capacity 10 and length 0 would be an empty slab
+//! with space for 10 more stored values. Storing 10 or fewer elements into the
+//! slab will not change its capacity or cause reallocation to occur. However,
+//! if the slab length is increased to 11 (due to another `store`), it will have
+//! to reallocate, which can be slow. For this reason, it is recommended to use
+//! [`Slab::with_capacity`] whenever possible to specify how many values the
+//! slab is expected to store.
+//!
 //! # Implementation
 //!
 //! `Slab` is backed by a `Vec` of slots. Each slot is either occupied or
@@ -78,6 +94,8 @@
 //!
 //! If there are no more available slots in the stack, then `Vec::reserve(1)` is
 //! called and a new slot is created.
+//!
+//! [`Slab::with_capacity`]: struct.Slab.html#with_capacity
 
 #![deny(warnings, missing_docs, missing_debug_implementations)]
 #![doc(html_root_url = "https://docs.rs/slab/0.4")]
@@ -88,7 +106,11 @@ use std::iter::IntoIterator;
 use std::ops;
 use std::marker::PhantomData;
 
-/// A preallocated chunk of memory for storing objects of the same type.
+/// Pre-allocated storage for a uniform data type
+///
+/// See [module documentation] for more details.
+///
+/// [module documentation]: index.html
 #[derive(Clone)]
 pub struct Slab<T, K = usize> {
     // Chunk of memory
@@ -105,6 +127,27 @@ pub struct Slab<T, K = usize> {
 }
 
 /// A handle to an empty slot in a `Slab`.
+///
+/// `Slot` allows constructing values with the key that they will be assigned
+/// to.
+///
+/// # Examples
+///
+/// ```
+/// # use slab::*;
+/// let mut slab = Slab::new();
+///
+/// let hello = {
+///     let slot = slab.slot();
+///     let key = slot.key();
+///
+///     slot.store((key, "hello"));
+///     key
+/// };
+///
+/// assert_eq!(hello, slab[hello].0);
+/// assert_eq!("hello", slab[hello].1);
+/// ```
 #[derive(Debug)]
 pub struct Slot<'a, T: 'a, K: 'a> {
     slab: &'a mut Slab<T, K>,
@@ -133,7 +176,7 @@ enum Entry<T> {
 }
 
 impl<T> Slab<T, usize> {
-    /// Construct a new, empty, `Slab`.
+    /// Construct a new, empty `Slab`.
     ///
     /// The function does not allocate and the returned slab will have no
     /// capacity until `store` is called or capacity is explicitly reserved.
@@ -148,14 +191,68 @@ impl<T> Slab<T, usize> {
         Slab::with_capacity(0)
     }
 
-    /// Returns an empty `Slab` with the requested capacity
+    /// Construct a new, empty `Slab` with the specified capacity.
+    ///
+    /// The returned slab will be able to store exactly `capacity` without
+    /// reallocating. If `capacity` is 0, the slab will not allocate.
+    ///
+    /// It is important to note that this function does not specify the *length*
+    /// of the returned slab, but only the capacity. For an explanation of the
+    /// difference between length and capacity, see [Capacity and
+    /// reallocation](index.html#capacity-and-reallocation).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::with_capacity(10);
+    ///
+    /// // The slab contains no values, even though it has capacity for more
+    /// assert_eq!(slab.len(), 0);
+    ///
+    /// // These are all done without reallocating...
+    /// for i in 0..10 {
+    ///     slab.store(i);
+    /// }
+    ///
+    /// // ...but this may make the slab reallocate
+    /// slab.store(11);
+    /// ```
     pub fn with_capacity(capacity: usize) -> Slab<T, usize> {
         Slab::with_capacity_and_key_type(capacity)
     }
 }
 
 impl<T, K> Slab<T, K> {
-    /// Returns an empty `Slab` with the requested capacity
+    /// Construct a new, empty `Slab` with the specified capacity using a custom
+    /// key type.
+    ///
+    /// This function is identical to [with_capacity] except that it also allows
+    /// the slab to use a custom key type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// #[derive(Debug, Eq, PartialEq)]
+    /// struct MyKey(usize);
+    ///
+    /// impl From<usize> for MyKey {
+    ///     fn from(i: usize) -> MyKey { MyKey(i) }
+    /// }
+    ///
+    /// impl Into<usize> for MyKey {
+    ///     fn into(self) -> usize { self.0 }
+    /// }
+    ///
+    /// let mut slab = Slab::with_capacity_and_key_type(1);
+    /// let key: MyKey = slab.store(10);
+    ///
+    /// assert_eq!(key, MyKey(0));
+    /// assert_eq!(slab[key], 10);
+    /// ```
+    ///
+    /// [with_capacity]: #with_capacity
     pub fn with_capacity_and_key_type(capacity: usize) -> Slab<T, K> {
         Slab {
             entries: Vec::with_capacity(capacity),
@@ -165,12 +262,14 @@ impl<T, K> Slab<T, K> {
         }
     }
 
-    /// Returns the number of values this slab can store without reallocating.
+    /// Returns the number of values the slab can store without reallocating.
     ///
     /// # Examples
     ///
     /// ```
-    /// println!("Hello");
+    /// # use slab::*;
+    /// let slab: Slab<i32> = Slab::with_capacity(10);
+    /// assert_eq!(slab.capacity(), 10);
     /// ```
     pub fn capacity(&self) -> usize {
         self.entries.capacity()
@@ -353,6 +452,24 @@ impl<T, K> Slab<T, K> {
     /// Iterators must iterate over every slot in the slab even if it is
     /// vaccant. As such, a slab with a capacity of 1 million but only one
     /// stored value must still iterate the million slots.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// for i in 0..3 {
+    ///     slab.store(i);
+    /// }
+    ///
+    /// let mut iterator = slab.iter();
+    ///
+    /// assert_eq!(iterator.next(), Some(&0));
+    /// assert_eq!(iterator.next(), Some(&1));
+    /// assert_eq!(iterator.next(), Some(&2));
+    /// assert_eq!(iterator.next(), None);
+    /// ```
     pub fn iter(&self) -> Iter<T, K> {
         Iter {
             slab: self,
@@ -366,6 +483,23 @@ impl<T, K> Slab<T, K> {
     /// Iterators must iterate over every slot in the slab even if it is
     /// vaccant. As such, a slab with a capacity of 1 million but only one
     /// stored value must still iterate the million slots.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// let key1 = slab.store(0);
+    /// let key2 = slab.store(1);
+    ///
+    /// for val in slab.iter_mut() {
+    ///     *val += 2;
+    /// }
+    ///
+    /// assert_eq!(slab[key1], 2);
+    /// assert_eq!(slab[key2], 3);
+    /// ```
     pub fn iter_mut(&mut self) -> IterMut<T, K> {
         IterMut {
             slab: self as *mut Slab<T, K>,
@@ -377,18 +511,48 @@ impl<T, K> Slab<T, K> {
 
 impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
     /// Returns a reference to the value associated with the given key
+    ///
+    /// If the given key is not associated with a value, then `None` is
+    /// returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    /// let key = slab.store("hello");
+    ///
+    /// assert_eq!(slab.get(key), Some(&"hello"));
+    /// assert_eq!(slab.get(123), None);
+    /// ```
     pub fn get(&self, key: K) -> Option<&T> {
-        match self.entries[key.into()] {
-            Entry::Occupied(ref val) => Some(val),
-            Entry::Vacant(..) => None,
+        match self.entries.get(key.into()) {
+            Some(&Entry::Occupied(ref val)) => Some(val),
+            _ => None,
         }
     }
 
     /// Returns a mutable reference to the value associated with the given key
+    ///
+    /// If the given key is not associated with a value, then `None` is
+    /// returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    /// let key = slab.store("hello");
+    ///
+    /// *slab.get_mut(key).unwrap() = "world";
+    ///
+    /// assert_eq!(slab[key], "world");
+    /// assert_eq!(slab.get_mut(123), None);
+    /// ```
     pub fn get_mut(&mut self, key: K) -> Option<&mut T> {
-        match self.entries[key.into()] {
-            Entry::Occupied(ref mut val) => Some(val),
-            Entry::Vacant(..) => None,
+        match self.entries.get_mut(key.into()) {
+            Some(&mut Entry::Occupied(ref mut val)) => Some(val),
+            _ => None,
         }
     }
 
@@ -396,6 +560,18 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
     /// performing bounds checking.
     ///
     /// This function should be used with care.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    /// let key = slab.store(2);
+    ///
+    /// unsafe {
+    ///     assert_eq!(slab.get_unchecked(key), &2);
+    /// }
+    /// ```
     pub unsafe fn get_unchecked(&self, key: K) -> &T {
         match *self.entries.get_unchecked(key.into()) {
             Entry::Occupied(ref val) => val,
@@ -407,6 +583,21 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
     /// without performing bounds checking.
     ///
     /// This function should be used with care.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    /// let key = slab.store(2);
+    ///
+    /// unsafe {
+    ///     let val = slab.get_unchecked_mut(key);
+    ///     *val = 13;
+    /// }
+    ///
+    /// assert_eq!(slab[key], 13);
+    /// ```
     pub unsafe fn get_unchecked_mut(&mut self, key: K) -> &mut T {
         match *self.entries.get_unchecked_mut(key.into()) {
             Entry::Occupied(ref mut val) => val,
@@ -415,6 +606,23 @@ impl<T, K: Into<usize> + From<usize>> Slab<T, K> {
     }
 
     /// Store a value in the slab, returning key assigned to the value
+    ///
+    /// The returned key can later be used to retrieve or remove the value using indexed
+    /// lookup and `remove`. Additional capacity is allocated if needed. See
+    /// [Capacity and reallocation](index.html#capacity-and-reallocation).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of elements in the vector overflows a `usize`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    /// let key = slab.store("hello");
+    /// assert_eq!(slab[key], "hello");
+    /// ```
     pub fn store(&mut self, val: T) -> K {
         let key = self.next;
 
