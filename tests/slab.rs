@@ -4,7 +4,7 @@ use slab::*;
 
 #[test]
 fn store_get_remove_one() {
-    let mut slab = Slab::<_, usize>::new();
+    let mut slab = Slab::new();
     assert!(slab.is_empty());
 
     let key = slab.store(10);
@@ -21,7 +21,7 @@ fn store_get_remove_one() {
 
 #[test]
 fn store_get_many() {
-    let mut slab = Slab::<_, usize>::with_capacity(10);
+    let mut slab = Slab::with_capacity(10);
 
     for i in 0..10 {
         let key = slab.store(i + 10);
@@ -40,7 +40,7 @@ fn store_get_many() {
 
 #[test]
 fn store_get_remove_many() {
-    let mut slab = Slab::<_, usize>::with_capacity(10);
+    let mut slab = Slab::with_capacity(10);
     let mut keys = vec![];
 
     for i in 0..10 {
@@ -62,7 +62,7 @@ fn store_get_remove_many() {
 
 #[test]
 fn store_with_slot() {
-    let mut slab = Slab::<_, usize>::with_capacity(1);
+    let mut slab = Slab::with_capacity(1);
     let key;
 
     {
@@ -76,7 +76,7 @@ fn store_with_slot() {
 
 #[test]
 fn get_slot_without_using() {
-    let mut slab = Slab::<usize, usize>::with_capacity(1);
+    let mut slab = Slab::<usize>::with_capacity(1);
     let key = slab.slot().key();
     assert_eq!(key, slab.slot().key());
 }
@@ -84,14 +84,14 @@ fn get_slot_without_using() {
 #[test]
 #[should_panic]
 fn invalid_get_panics() {
-    let slab = Slab::<usize, usize>::with_capacity(1);
+    let slab = Slab::<usize>::with_capacity(1);
     slab[0];
 }
 
 #[test]
 #[should_panic]
 fn double_remove_panics() {
-    let mut slab = Slab::<_, usize>::with_capacity(1);
+    let mut slab = Slab::<usize>::with_capacity(1);
     let key = slab.store(123);
     slab.remove(key);
     slab.remove(key);
@@ -100,13 +100,13 @@ fn double_remove_panics() {
 #[test]
 #[should_panic]
 fn invalid_remove_panics() {
-    let mut slab = Slab::<usize, usize>::with_capacity(1);
+    let mut slab = Slab::<usize>::with_capacity(1);
     slab.remove(0);
 }
 
 #[test]
 fn slab_get_mut() {
-    let mut slab = Slab::<_, usize>::new();
+    let mut slab = Slab::new();
     let key = slab.store(1);
 
     slab[key] = 2;
@@ -118,7 +118,7 @@ fn slab_get_mut() {
 
 #[test]
 fn reserve_does_not_allocate_if_available() {
-    let mut slab = Slab::<_, usize>::with_capacity(10);
+    let mut slab = Slab::with_capacity(10);
     let mut keys = vec![];
 
     for i in 0..10 {
@@ -135,7 +135,7 @@ fn reserve_does_not_allocate_if_available() {
 
 #[test]
 fn reserve_exact_does_not_allocate_if_available() {
-    let mut slab = Slab::<_, usize>::with_capacity(10);
+    let mut slab = Slab::with_capacity(10);
     let mut keys = vec![];
 
     for i in 0..10 {
@@ -163,7 +163,7 @@ fn test_key_trait() {
         fn into(self) -> usize { self.0 }
     }
 
-    let mut slab = Slab::<_, MyKey>::with_capacity(1);
+    let mut slab = Slab::with_capacity_and_key_type(1);
     let key: MyKey = slab.store(10);
 
     assert_eq!(key, MyKey(0));
@@ -173,7 +173,7 @@ fn test_key_trait() {
 
 #[test]
 fn retain() {
-    let mut slab = Slab::<_, usize>::with_capacity(2);
+    let mut slab = Slab::with_capacity(2);
 
     let key1 = slab.store(0);
     let key2 = slab.store(1);
@@ -200,7 +200,7 @@ fn retain() {
 
 #[test]
 fn iter() {
-    let mut slab = Slab::<_, usize>::new();
+    let mut slab = Slab::new();
 
     for i in 0..4 {
         slab.store(i);
@@ -217,7 +217,7 @@ fn iter() {
 
 #[test]
 fn iter_mut() {
-    let mut slab = Slab::<_, usize>::new();
+    let mut slab = Slab::new();
 
     for i in 0..4 {
         slab.store(i);
@@ -242,7 +242,7 @@ fn iter_mut() {
 
 #[test]
 fn clear() {
-    let mut slab = Slab::<_, usize>::new();
+    let mut slab = Slab::new();
 
     for i in 0..4 {
         slab.store(i);

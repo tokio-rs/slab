@@ -7,12 +7,66 @@
 //! operations become very cheap.
 //!
 //! While `Slab` may look like other Rust collections, it is not intended to be
-//! used as a general purpose collection.
+//! used as a general purpose collection. The primary difference between `Slab`
+//! and `Vec` is that `Slab` returns the key when storing the value.
+//!
+//! It is important to note that keys may be reused. In other words, once a
+//! value associated with a given key is removed from a slab, that key may be
+//! returned from future calls to `store`.
 //!
 //! # Examples
 //!
+//! Basic storing and retrieval.
+//!
 //! ```
-//! println!("Hello");
+//! # use slab::*;
+//! let mut slab = Slab::new();
+//!
+//! let hello = slab.store("hello");
+//! let world = slab.store("world");
+//!
+//! assert_eq!(slab[hello], "hello");
+//! assert_eq!(slab[world], "world");
+//!
+//! slab[world] = "earth";
+//! assert_eq!(slab[world], "earth");
+//! ```
+//!
+//! Sometimes it is useful to be able to associate the key with the value being
+//! stored in the slab. This can be done with the `slot` API as such:
+//!
+//! ```
+//! # use slab::*;
+//! let mut slab = Slab::new();
+//!
+//! let hello = {
+//!     let slot = slab.slot();
+//!     let key = slot.key();
+//!
+//!     slot.store((key, "hello"));
+//!     key
+//! };
+//!
+//! assert_eq!(hello, slab[hello].0);
+//! assert_eq!("hello", slab[hello].1);
+//! ```
+//!
+//! It is generally a good idea to specify the desired capacity of a slab at
+//! creation time. Note that `Slab` will grow the internal capacity when
+//! attempting to store a new value once the existing capacity has been reached.
+//! To avoid this, add a check.
+//!
+//! ```
+//! # use slab::*;
+//! let mut slab = Slab::with_capacity(1024);
+//!
+//! // ... use the slab
+//!
+//! if slab.len() == slab.capacity() {
+//!     panic!("slab full");
+//! }
+//!
+//! slab.store("the slab is not at capacity yet");
 //! ```
 //!
 //! # Implementation
@@ -70,13 +124,20 @@ enum Entry<T> {
     Occupied(T),
 }
 
-impl<T, K> Slab<T, K> {
-    pub fn new() -> Slab<T, K> {
+impl<T> Slab<T, usize> {
+    pub fn new() -> Slab<T, usize> {
         Slab::with_capacity(0)
     }
 
     /// Returns an empty `Slab` with the requested capacity
-    pub fn with_capacity(capacity: usize) -> Slab<T, K> {
+    pub fn with_capacity(capacity: usize) -> Slab<T, usize> {
+        Slab::with_capacity_and_key_type(capacity)
+    }
+}
+
+impl<T, K> Slab<T, K> {
+    /// Returns an empty `Slab` with the requested capacity
+    pub fn with_capacity_and_key_type(capacity: usize) -> Slab<T, K> {
         Slab {
             entries: Vec::with_capacity(capacity),
             next: 0,
