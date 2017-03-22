@@ -157,7 +157,10 @@ fn retain() {
     let key1 = slab.insert(0);
     let key2 = slab.insert(1);
 
-    slab.retain(|x| *x % 2 == 0);
+    slab.retain(|key, x| {
+        assert_eq!(key, *x);
+        *x % 2 == 0
+    });
 
     assert_eq!(slab.len(), 1);
     assert_eq!(slab[key1], 0);

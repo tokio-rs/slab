@@ -594,6 +594,28 @@ impl<T> Slab<T> {
     }
 
     /// Returns a handle to a vacant entry allowing for further manipulation.
+    ///
+    /// This function is useful when creating values that must contain their
+    /// slab key. The returned `VaccantEntry` reserves a slot in the slab and is
+    /// able to query the associated key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// let hello = {
+    ///     let entry = slab.vacant_entry();
+    ///     let key = entry.key();
+    ///
+    ///     entry.insert((key, "hello"));
+    ///     key
+    /// };
+    ///
+    /// assert_eq!(hello, slab[hello].0);
+    /// assert_eq!("hello", slab[hello].1);
+    /// ```
     pub fn vacant_entry(&mut self) -> VacantEntry<T> {
         VacantEntry {
             key: self.next,
@@ -625,6 +647,22 @@ impl<T> Slab<T> {
     ///
     /// The key is then released and may be associated with future stored
     /// values.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `key` is not associated with a value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// let hello = slab.insert("hello");
+    ///
+    /// assert_eq!(slab.remove(hello), "hello");
+    /// assert!(!slab.contains(hello));
+    /// ```
     pub fn remove(&mut self, key: usize) -> T {
         // Swap the entry at the provided value
         let prev = mem::replace(
@@ -646,6 +684,20 @@ impl<T> Slab<T> {
     }
 
     /// Returns `true` if a value is associated with the given key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// let hello = slab.insert("hello");
+    /// assert!(slab.contains(hello));
+    ///
+    /// slab.remove(hello);
+    ///
+    /// assert!(!slab.contains(hello));
+    /// ```
     pub fn contains(&self, key: usize) -> bool {
         self.entries.get(key)
             .map(|e| {
@@ -659,15 +711,34 @@ impl<T> Slab<T> {
 
     /// Retain only the elements specified by the predicate.
     ///
-    /// In other words, remove all elements `e` such that `f(&e)` returns false.
-    /// This method operates in place and preserves the order of the retained
-    /// elements.
+    /// In other words, remove all elements `e` such that `f(usize, &mut e)`
+    /// returns false. This method operates in place and preserves the key
+    /// associated with the retained values.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// let k1 = slab.insert(0);
+    /// let k2 = slab.insert(1);
+    /// let k3 = slab.insert(2);
+    ///
+    /// slab.retain(|key, val| key == k1 || *val == 1);
+    ///
+    /// assert!(slab.contains(k1));
+    /// assert!(slab.contains(k2));
+    /// assert!(!slab.contains(k3));
+    ///
+    /// assert_eq!(2, slab.len());
+    /// ```
     pub fn retain<F>(&mut self, mut f: F)
-        where F: FnMut(&mut T) -> bool
+        where F: FnMut(usize, &mut T) -> bool
     {
         for i in 0..self.entries.len() {
             let keep = match self.entries[i] {
-                Entry::Occupied(ref mut v) => f(v),
+                Entry::Occupied(ref mut v) => f(i, v),
                 _ => true,
             };
 
