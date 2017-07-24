@@ -1,18 +1,13 @@
 [package]
 
 name = "slab"
-version = "0.3.0"
+version = "0.4.0"
 license = "MIT"
 authors = ["Carl Lerche <me@carllerche.com>"]
-description = "Simple slab allocator"
-documentation = "https://docs.rs/slab/0.3.0/slab/"
+description = "Pre-allocated storage for a uniform data type"
+documentation = "https://docs.rs/slab"
 homepage = "https://github.com/carllerche/slab"
 repository = "https://github.com/carllerche/slab"
 readme = "README.md"
 keywords = ["slab", "allocator"]
-categories = ["memory-management"]
-exclude = [
-    ".gitignore",
-    ".travis.yml",
-    "test/**/*",
-]
+categories = ["memory-management", "data-structures"]
