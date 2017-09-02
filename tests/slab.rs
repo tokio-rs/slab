@@ -121,15 +121,17 @@ fn reserve_does_not_allocate_if_available() {
     let mut slab = Slab::with_capacity(10);
     let mut keys = vec![];
 
-    for i in 0..10 {
+    for i in 0..6 {
         keys.push(slab.insert(i));
     }
 
-    for key in keys {
+    for key in 0..4 {
         slab.remove(key);
     }
 
-    slab.reserve(10);
+    assert!(slab.capacity() - slab.len() == 8);
+
+    slab.reserve(8);
     assert_eq!(10, slab.capacity());
 }
 
@@ -138,15 +140,17 @@ fn reserve_exact_does_not_allocate_if_available() {
     let mut slab = Slab::with_capacity(10);
     let mut keys = vec![];
 
-    for i in 0..10 {
+    for i in 0..6 {
         keys.push(slab.insert(i));
     }
 
-    for key in keys {
+    for key in 0..4 {
         slab.remove(key);
     }
 
-    slab.reserve_exact(10);
+    assert!(slab.capacity() - slab.len() == 8);
+
+    slab.reserve(8);
     assert_eq!(10, slab.capacity());
 }
 
