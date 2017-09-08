@@ -264,13 +264,11 @@ impl<T> Slab<T> {
     /// assert!(slab.capacity() >= 11);
     /// ```
     pub fn reserve(&mut self, additional: usize) {
-        let available = self.entries.len() - self.len;
-
-        if available >= additional {
+        if self.capacity() - self.len >= additional {
             return;
         }
-
-        self.entries.reserve(additional - available);
+        let need_add = self.len + additional - self.entries.len();
+        self.entries.reserve(need_add);
     }
 
     /// Reserves the minimum capacity required to store exactly `additional`
@@ -300,13 +298,11 @@ impl<T> Slab<T> {
     /// assert!(slab.capacity() >= 11);
     /// ```
     pub fn reserve_exact(&mut self, additional: usize) {
-        let available = self.entries.len() - self.len;
-
-        if available >= additional {
+        if self.capacity() - self.len >= additional {
             return;
         }
-
-        self.entries.reserve_exact(additional - available);
+        let need_add = self.len + additional - self.entries.len();
+        self.entries.reserve_exact(need_add);
     }
 
     /// Shrinks the capacity of the slab as much as possible.
