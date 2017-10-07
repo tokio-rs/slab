@@ -105,7 +105,6 @@
 use std::{fmt, mem};
 use std::iter::IntoIterator;
 use std::ops;
-use std::marker::PhantomData;
 
 /// Pre-allocated storage for a uniform data type
 ///
@@ -154,17 +153,15 @@ pub struct VacantEntry<'a, T: 'a> {
 }
 
 /// An iterator over the values stored in the `Slab`
-#[derive(Debug)]
 pub struct Iter<'a, T: 'a> {
-    slab: &'a Slab<T>,
+    entries: std::slice::Iter<'a, Entry<T>>,
     curr: usize,
 }
 
 /// A mutable iterator over the values stored in the `Slab`
 pub struct IterMut<'a, T: 'a> {
-    slab: *mut Slab<T>,
+    entries: std::slice::IterMut<'a, Entry<T>>,
     curr: usize,
-    _marker: PhantomData<&'a mut ()>,
 }
 
 #[derive(Clone)]
@@ -430,7 +427,7 @@ impl<T> Slab<T> {
     /// ```
     pub fn iter(&self) -> Iter<T> {
         Iter {
-            slab: self,
+            entries: self.entries.iter(),
             curr: 0,
         }
     }
@@ -462,9 +459,8 @@ impl<T> Slab<T> {
     /// ```
     pub fn iter_mut(&mut self) -> IterMut<T> {
         IterMut {
-            slab: self as *mut Slab<T>,
+            entries: self.entries.iter_mut(),
             curr: 0,
-            _marker: PhantomData,
         }
     }
 
@@ -792,11 +788,20 @@ impl<T> fmt::Debug for Slab<T> where T: fmt::Debug {
     }
 }
 
+impl<'a, T: 'a> fmt::Debug for Iter<'a, T> where T: fmt::Debug {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Iter")
+            .field("curr", &self.curr)
+            .field("remaining", &self.entries.len())
+            .finish()
+    }
+}
+
 impl<'a, T: 'a> fmt::Debug for IterMut<'a, T> where T: fmt::Debug {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("IterMut")
-            .field("slab", unsafe { &*self.slab })
             .field("curr", &self.curr)
+            .field("remaining", &self.entries.len())
             .finish()
     }
 }
@@ -867,11 +872,11 @@ impl<'a, T> Iterator for Iter<'a, T> {
     type Item = (usize, &'a T);
 
     fn next(&mut self) -> Option<(usize, &'a T)> {
-        while self.curr < self.slab.entries.len() {
+        while let Some(entry) = self.entries.next() {
             let curr = self.curr;
             self.curr += 1;
 
-            if let Entry::Occupied(ref v) = self.slab.entries[curr] {
+            if let Entry::Occupied(ref v) = *entry {
                 return Some((curr, v));
             }
         }
@@ -886,17 +891,15 @@ impl<'a, T> Iterator for IterMut<'a, T> {
     type Item = (usize, &'a mut T);
 
     fn next(&mut self) -> Option<(usize, &'a mut T)> {
-        unsafe {
-            while self.curr < (*self.slab).entries.len() {
-                let curr = self.curr;
-                self.curr += 1;
+        while let Some(entry) = self.entries.next() {
+            let curr = self.curr;
+            self.curr += 1;
 
-                if let Entry::Occupied(ref mut v) = (*self.slab).entries[curr] {
-                    return Some((curr, v));
-                }
+            if let Entry::Occupied(ref mut v) = *entry {
+                return Some((curr, v));
             }
-
-            None
         }
+
+        None
     }
 }
