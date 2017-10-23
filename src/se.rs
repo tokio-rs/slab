@@ -120,5 +120,7 @@ mod tests {
         assert_eq!(s[foo], "foo");
         assert_eq!(s.get(bar), None);
         assert_eq!(s[hello], "hello");
+        assert_eq!(s.next, bar);
+        assert_matches!(s.entries[bar], Entry::Vacant(3));
     }
 }

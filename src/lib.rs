@@ -107,6 +107,10 @@ extern crate serde;
 #[cfg(feature = "serde")]
 #[cfg(test)]
 extern crate serde_json;
+#[cfg(feature = "serde")]
+#[cfg(test)]
+#[macro_use]
+extern crate matches;
 
 #[cfg(feature = "serde")]
 mod se;
@@ -173,7 +177,7 @@ pub struct IterMut<'a, T: 'a> {
     curr: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum Entry<T> {
     Vacant(usize),
     Occupied(T),
