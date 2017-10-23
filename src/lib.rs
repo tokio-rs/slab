@@ -102,6 +102,15 @@
 #![doc(html_root_url = "https://docs.rs/slab/0.4")]
 #![crate_name = "slab"]
 
+#[cfg(feature = "serde")]
+extern crate serde;
+#[cfg(feature = "serde")]
+#[cfg(test)]
+extern crate serde_json;
+
+#[cfg(feature = "serde")]
+mod se;
+
 use std::{fmt, mem};
 use std::iter::IntoIterator;
 use std::ops;
