@@ -103,7 +103,7 @@
 #![crate_name = "slab"]
 
 use std::{fmt, mem};
-use std::iter::IntoIterator;
+use std::iter::{FromIterator, IntoIterator};
 use std::ops;
 
 /// Pre-allocated storage for a uniform data type
@@ -776,6 +776,38 @@ impl<'a, T> IntoIterator for &'a mut Slab<T> {
 
     fn into_iter(self) -> IterMut<'a, T> {
         self.iter_mut()
+    }
+}
+
+impl<T> FromIterator<(usize, T)> for Slab<T> {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = (usize, T)>
+    {
+        let mut slab = Slab::new();
+        let mut head = None;
+
+        for (key, value) in iter.into_iter() {
+            for i in slab.entries.len()..key {
+                slab.entries.push(Entry::Vacant(slab.next));
+                slab.next = i;
+
+                if head.is_none() {
+                    head = Some(i)
+                }
+            }
+
+            slab.entries.push(Entry::Occupied(value));
+            slab.len += 1;
+        }
+
+        if let Some(key) = head {
+            slab.entries[key] = Entry::Vacant(slab.entries.len())
+        } else {
+            slab.next = slab.entries.len() + 1
+        }
+
+        slab
     }
 }
 

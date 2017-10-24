@@ -1,5 +1,7 @@
 extern crate slab;
 
+use std::iter::FromIterator;
+
 use slab::*;
 
 #[test]
@@ -228,6 +230,19 @@ fn iter_mut() {
 
     let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();
     assert_eq!(vals, vec![2, 3, 5]);
+}
+
+#[test]
+fn from_iter() {
+    let mut slab = Slab::from_iter(vec![(0, "foo"), (2, "bar")]);
+
+    assert_eq!(slab.len(), 2);
+    assert_eq!(slab[0], "foo");
+    assert!(slab.get(1).is_none());
+    assert_eq!(slab[2], "bar");
+
+    assert_eq!(slab.insert("hello"), 1);
+    assert_eq!(slab.insert("world"), 3);
 }
 
 #[test]
