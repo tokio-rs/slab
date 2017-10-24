@@ -804,7 +804,7 @@ impl<T> FromIterator<(usize, T)> for Slab<T> {
         if let Some(key) = head {
             slab.entries[key] = Entry::Vacant(slab.entries.len())
         } else {
-            slab.next = slab.entries.len() + 1
+            slab.next = slab.entries.len()
         }
 
         slab

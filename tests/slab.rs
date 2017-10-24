@@ -243,6 +243,15 @@ fn from_iter() {
 
     assert_eq!(slab.insert("hello"), 1);
     assert_eq!(slab.insert("world"), 3);
+
+    let mut slab = Slab::from_iter(vec![(0, "foo"), (1, "hello"), (2, "bar")]);
+
+    assert_eq!(slab.len(), 3);
+    assert_eq!(slab[0], "foo");
+    assert_eq!(slab[1], "hello");
+    assert_eq!(slab[2], "bar");
+
+    assert_eq!(slab.insert("world"), 3);
 }
 
 #[test]
