@@ -124,6 +124,12 @@ pub struct Slab<T> {
     next: usize,
 }
 
+impl<T> Default for Slab<T> {
+    fn default() -> Self {
+        Slab::new()
+    }
+}
+
 /// A handle to an vacant entry in a `Slab`.
 ///
 /// `VacantEntry` allows constructing values with the key that they will be
