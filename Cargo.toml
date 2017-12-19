@@ -11,3 +11,6 @@ repository = "https://github.com/carllerche/slab"
 readme = "README.md"
 keywords = ["slab", "allocator"]
 categories = ["memory-management", "data-structures"]
+
+[dev-dependencies]
+rand = "0.4"
