@@ -787,7 +787,16 @@ impl<T> FromIterator<(usize, T)> for Slab<T> {
         let mut slab = Slab::new();
         let mut head = None;
 
-        for (key, value) in iter.into_iter() {
+        let mut v: Vec<I::Item> = iter.into_iter().collect();
+
+        v.sort_by(|&(key1, _), &(key2, _)| key1.cmp(&key2));
+
+        for (key, value) in v.into_iter() {
+            if key + 1 == slab.entries.len() {
+                slab.entries[key] = Entry::Occupied(value);
+                continue
+            }
+
             for i in slab.entries.len()..key {
                 slab.entries.push(Entry::Vacant(slab.next));
                 slab.next = i;

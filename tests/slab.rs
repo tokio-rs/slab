@@ -1,6 +1,10 @@
 extern crate slab;
+extern crate rand;
 
-use std::iter::FromIterator;
+use std::collections::HashSet;
+use std::iter::{repeat, FromIterator};
+
+use rand::Rng;
 
 use slab::*;
 
@@ -252,6 +256,33 @@ fn from_iter() {
     assert_eq!(slab[2], "bar");
 
     assert_eq!(slab.insert("world"), 3);
+
+    let mut slab = Slab::from_iter(vec![(1, "hello"), (0, "foo"), (2, "bar")]);
+
+    assert_eq!(slab.len(), 3);
+    assert_eq!(slab[0], "foo");
+    assert_eq!(slab[1], "hello");
+    assert_eq!(slab[2], "bar");
+
+    assert_eq!(slab.insert("world"), 3);
+
+    let mut rng = rand::thread_rng();
+    let mut indexes: Vec<usize> = (1..10000).flat_map(|key|
+        if rng.gen_weighted_bool(2) {
+            Some(rng.gen_range(0, key))
+        } else {
+            None
+        }
+    ).collect();
+    rng.shuffle(&mut indexes);
+    let slab = Slab::from_iter(indexes.iter().cloned().zip(repeat(true)));
+    let keys: HashSet<usize> = HashSet::from_iter(indexes.iter().cloned());
+
+    assert_eq!(slab.len(), keys.len());
+
+    for key in indexes.into_iter() {
+        assert_eq!(keys.contains(&key), slab.contains(key));
+    }
 }
 
 #[test]
