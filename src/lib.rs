@@ -170,11 +170,7 @@ pub struct IterMut<'a, T: 'a> {
     curr: usize,
 }
 
-#[derive(Clone)]
-enum Entry<T> {
-    Vacant(usize),
-    Occupied(T),
-}
+type Entry<T> = Result<T, usize>;
 
 impl<T> Slab<T> {
     /// Construct a new, empty `Slab`.
@@ -486,10 +482,10 @@ impl<T> Slab<T> {
     /// assert_eq!(slab.get(123), None);
     /// ```
     pub fn get(&self, key: usize) -> Option<&T> {
-        match self.entries.get(key) {
-            Some(&Entry::Occupied(ref val)) => Some(val),
-            _ => None,
-        }
+        self.entries
+            .get(key)
+            .map(Result::as_ref)
+            .and_then(Result::ok)
     }
 
     /// Returns a mutable reference to the value associated with the given key
@@ -510,10 +506,10 @@ impl<T> Slab<T> {
     /// assert_eq!(slab.get_mut(123), None);
     /// ```
     pub fn get_mut(&mut self, key: usize) -> Option<&mut T> {
-        match self.entries.get_mut(key) {
-            Some(&mut Entry::Occupied(ref mut val)) => Some(val),
-            _ => None,
-        }
+        self.entries
+            .get_mut(key)
+            .map(Result::as_mut)
+            .and_then(Result::ok)
     }
 
     /// Returns a reference to the value associated with the given key without
@@ -533,10 +529,7 @@ impl<T> Slab<T> {
     /// }
     /// ```
     pub unsafe fn get_unchecked(&self, key: usize) -> &T {
-        match *self.entries.get_unchecked(key) {
-            Entry::Occupied(ref val) => val,
-            _ => unreachable!(),
-        }
+        self.entries.get_unchecked(key).as_ref().unwrap()
     }
 
     /// Returns a mutable reference to the value associated with the given key
@@ -559,10 +552,7 @@ impl<T> Slab<T> {
     /// assert_eq!(slab[key], 13);
     /// ```
     pub unsafe fn get_unchecked_mut(&mut self, key: usize) -> &mut T {
-        match *self.entries.get_unchecked_mut(key) {
-            Entry::Occupied(ref mut val) => val,
-            _ => unreachable!(),
-        }
+        self.entries.get_unchecked_mut(key).as_mut().unwrap()
     }
 
     /// Insert a value in the slab, returning key assigned to the value
@@ -625,19 +615,11 @@ impl<T> Slab<T> {
         self.len += 1;
 
         if key == self.entries.len() {
-            self.entries.push(Entry::Occupied(val));
+            self.entries.push(Result::Ok(val));
             self.next = key + 1;
         } else {
-            let prev = mem::replace(
-                &mut self.entries[key],
-                Entry::Occupied(val));
-
-            match prev {
-                Entry::Vacant(next) => {
-                    self.next = next;
-                }
-                _ => unreachable!(),
-            }
+            let prev = mem::replace(&mut self.entries[key], Result::Ok(val));
+            self.next = prev.err().unwrap();
         }
     }
 
@@ -662,23 +644,42 @@ impl<T> Slab<T> {
     /// assert!(!slab.contains(hello));
     /// ```
     pub fn remove(&mut self, key: usize) -> T {
-        // Swap the entry at the provided value
-        let prev = mem::replace(
-            &mut self.entries[key],
-            Entry::Vacant(self.next));
+        // Swap the entry at the key.
+        let prev = mem::replace(&mut self.entries[key], Result::Err(self.next));
 
-        match prev {
-            Entry::Occupied(val) => {
-                self.len -= 1;
-                self.next = key;
-                val
-            }
-            _ => {
-                // Woops, the entry is actually vacant, restore the state
-                self.entries[key] = prev;
-                panic!("invalid key");
-            }
-        }
+        // If the entry is vacant, it is not sufficient to just panic. When the
+        // thread is destroyed, any mutexes or other synchronization primitives
+        // holding the slab will become poisoned, meaning that the state
+        // becomes untrusted for those threads. However, it is also possible
+        // for a panic to trigger a stack unwind if it doesn't abort, which can
+        // potentially result in a race condition where the poisoned slab is
+        // accessed directly from a stack frame that captures the panic using
+        // `std::panic::catch_unwind`. Also, undefined behavior can happen when
+        // non-poisonable race-condition-preventing mutating-lock-primitives
+        // such as RefCell are used to wrap the Slab and triggered from the
+        // drop() method of something on the stack frame after a panic is
+        // triggered. This undefined behavior would not trigger a panic,
+        // since the slab's state is always assumed unpoisoned. Also, it isn't
+        // possible to use `UnwindSafe` to force abort behavior on panic
+        // because it is only taken into consideration when using
+        // `std::panic::catch_unwind`. Therefore, due to language limitations,
+        // either the state of the slab needs to be corrected before a panic
+        // or undefined behavior is allowed to persist in a narrow set of
+        // circumstances. This implementation corrects the state to avoid
+        // all unwind unsafety at a small cost. If panic is set to abort
+        // then this state correction becomes unecessary since all
+        // relevant cross-thread synchronization primivies can be poisoned.
+        let val = if prev.is_err() {
+            // Restore old state to avoid undefined behavior as mentioned above.
+            self.entries[key] = prev;
+            panic!("slab::Slab::remove: invalid key")
+        } else {
+            prev.unwrap()
+        };
+
+        self.len -= 1;
+        self.next = key;
+        val
     }
 
     /// Returns `true` if a value is associated with the given key.
@@ -697,14 +698,7 @@ impl<T> Slab<T> {
     /// assert!(!slab.contains(hello));
     /// ```
     pub fn contains(&self, key: usize) -> bool {
-        self.entries.get(key)
-            .map(|e| {
-                match *e {
-                    Entry::Occupied(_) => true,
-                    _ => false,
-                }
-            })
-            .unwrap_or(false)
+        self.entries.get(key).map(Result::is_ok).unwrap_or(false)
     }
 
     /// Retain only the elements specified by the predicate.
@@ -732,16 +726,16 @@ impl<T> Slab<T> {
     /// assert_eq!(2, slab.len());
     /// ```
     pub fn retain<F>(&mut self, mut f: F)
-        where F: FnMut(usize, &mut T) -> bool
+    where
+        F: FnMut(usize, &mut T) -> bool,
     {
-        for i in 0..self.entries.len() {
-            let keep = match self.entries[i] {
-                Entry::Occupied(ref mut v) => f(i, v),
-                _ => true,
-            };
+        for (i, v) in self.entries.iter_mut().enumerate() {
+            let keep = v.as_mut().map(|v| f(i, v)).unwrap_or(true);
 
             if !keep {
-                self.remove(i);
+                *v = Result::Err(self.next);
+                self.next = i;
+                self.len -= 1;
             }
         }
     }
@@ -751,19 +745,17 @@ impl<T> ops::Index<usize> for Slab<T> {
     type Output = T;
 
     fn index(&self, key: usize) -> &T {
-        match self.entries[key] {
-            Entry::Occupied(ref v) => v,
-            _ => panic!("invalid key"),
-        }
+        self.entries[key]
+            .as_ref()
+            .expect("<slab::Slab as Index<usize>>::index: cannot index vacant location")
     }
 }
 
 impl<T> ops::IndexMut<usize> for Slab<T> {
     fn index_mut(&mut self, key: usize) -> &mut T {
-        match self.entries[key] {
-            Entry::Occupied(ref mut v) => v,
-            _ => panic!("invalid key"),
-        }
+        self.entries[key]
+            .as_mut()
+            .expect("<slab::Slab as IndexMut<usize>>::index_mut: cannot index vacant location")
     }
 }
 
@@ -785,16 +777,24 @@ impl<'a, T> IntoIterator for &'a mut Slab<T> {
     }
 }
 
-impl<T> fmt::Debug for Slab<T> where T: fmt::Debug {
+impl<T> fmt::Debug for Slab<T>
+where
+    T: fmt::Debug,
+{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt,
-               "Slab {{ len: {}, cap: {} }}",
-               self.len,
-               self.capacity())
+        write!(
+            fmt,
+            "Slab {{ len: {}, cap: {} }}",
+            self.len,
+            self.capacity()
+        )
     }
 }
 
-impl<'a, T: 'a> fmt::Debug for Iter<'a, T> where T: fmt::Debug {
+impl<'a, T: 'a> fmt::Debug for Iter<'a, T>
+where
+    T: fmt::Debug,
+{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Iter")
             .field("curr", &self.curr)
@@ -803,7 +803,10 @@ impl<'a, T: 'a> fmt::Debug for Iter<'a, T> where T: fmt::Debug {
     }
 }
 
-impl<'a, T: 'a> fmt::Debug for IterMut<'a, T> where T: fmt::Debug {
+impl<'a, T: 'a> fmt::Debug for IterMut<'a, T>
+where
+    T: fmt::Debug,
+{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("IterMut")
             .field("curr", &self.curr)
@@ -840,10 +843,7 @@ impl<'a, T> VacantEntry<'a, T> {
     pub fn insert(self, val: T) -> &'a mut T {
         self.slab.insert_at(self.key, val);
 
-        match self.slab.entries[self.key] {
-            Entry::Occupied(ref mut v) => v,
-            _ => unreachable!(),
-        }
+        self.slab.entries[self.key].as_mut().unwrap()
     }
 
     /// Return the key associated with this entry.
@@ -882,7 +882,7 @@ impl<'a, T> Iterator for Iter<'a, T> {
             let curr = self.curr;
             self.curr += 1;
 
-            if let Entry::Occupied(ref v) = *entry {
+            if let Result::Ok(ref v) = *entry {
                 return Some((curr, v));
             }
         }
@@ -901,7 +901,7 @@ impl<'a, T> Iterator for IterMut<'a, T> {
             let curr = self.curr;
             self.curr += 1;
 
-            if let Entry::Occupied(ref mut v) = *entry {
+            if let Result::Ok(ref mut v) = *entry {
                 return Some((curr, v));
             }
         }
