@@ -108,7 +108,7 @@ use std::ops;
 
 /// Pre-allocated storage for a uniform data type
 ///
-/// See [module documentation] for more details.
+/// See the [module documentation] for more details.
 ///
 /// [module documentation]: index.html
 #[derive(Clone)]
@@ -130,7 +130,7 @@ impl<T> Default for Slab<T> {
     }
 }
 
-/// A handle to an vacant entry in a `Slab`.
+/// A handle to a vacant entry in a `Slab`.
 ///
 /// `VacantEntry` allows constructing values with the key that they will be
 /// assigned to.
@@ -243,7 +243,7 @@ impl<T> Slab<T> {
     /// Reserves capacity for at least `additional` more values to be stored
     /// without allocating.
     ///
-    /// `reserve` does nothing if the slab already has sufficient capcity for
+    /// `reserve` does nothing if the slab already has sufficient capacity for
     /// `additional` more values. If more capacity is required, a new segment of
     /// memory will be allocated and all existing values will be copied into it.
     /// As such, if the slab is already very large, a call to `reserve` can end
@@ -411,7 +411,7 @@ impl<T> Slab<T> {
     ///
     /// This function should generally be **avoided** as it is not efficient.
     /// Iterators must iterate over every slot in the slab even if it is
-    /// vaccant. As such, a slab with a capacity of 1 million but only one
+    /// vacant. As such, a slab with a capacity of 1 million but only one
     /// stored value must still iterate the million slots.
     ///
     /// # Examples
@@ -442,7 +442,7 @@ impl<T> Slab<T> {
     ///
     /// This function should generally be **avoided** as it is not efficient.
     /// Iterators must iterate over every slot in the slab even if it is
-    /// vaccant. As such, a slab with a capacity of 1 million but only one
+    /// vacant. As such, a slab with a capacity of 1 million but only one
     /// stored value must still iterate the million slots.
     ///
     /// # Examples
@@ -594,7 +594,7 @@ impl<T> Slab<T> {
     /// Returns a handle to a vacant entry allowing for further manipulation.
     ///
     /// This function is useful when creating values that must contain their
-    /// slab key. The returned `VaccantEntry` reserves a slot in the slab and is
+    /// slab key. The returned `VacantEntry` reserves a slot in the slab and is
     /// able to query the associated key.
     ///
     /// # Examples
