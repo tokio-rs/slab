@@ -227,7 +227,7 @@ impl<T> Slab<T> {
         }
     }
 
-    /// Returns the number of values the slab can store without reallocating.
+    /// Return the number of values the slab can store without reallocating.
     ///
     /// # Examples
     ///
@@ -240,7 +240,7 @@ impl<T> Slab<T> {
         self.entries.capacity()
     }
 
-    /// Reserves capacity for at least `additional` more values to be stored
+    /// Reserve capacity for at least `additional` more values to be stored
     /// without allocating.
     ///
     /// `reserve` does nothing if the slab already has sufficient capacity for
@@ -274,7 +274,7 @@ impl<T> Slab<T> {
         self.entries.reserve(need_add);
     }
 
-    /// Reserves the minimum capacity required to store exactly `additional`
+    /// Reserve the minimum capacity required to store exactly `additional`
     /// more values.
     ///
     /// `reserve_exact` does nothing if the slab already has sufficient capacity
@@ -308,7 +308,7 @@ impl<T> Slab<T> {
         self.entries.reserve_exact(need_add);
     }
 
-    /// Shrinks the capacity of the slab as much as possible.
+    /// Shrink the capacity of the slab as much as possible.
     ///
     /// It will drop down as close as possible to the length but the allocator
     /// may still inform the vector that there is space for a few more elements.
@@ -352,7 +352,7 @@ impl<T> Slab<T> {
         self.entries.shrink_to_fit();
     }
 
-    /// Clear the slab of all values
+    /// Clear the slab of all values.
     ///
     /// # Examples
     ///
@@ -373,7 +373,7 @@ impl<T> Slab<T> {
         self.next = 0;
     }
 
-    /// Returns the number of stored values
+    /// Return the number of stored values.
     ///
     /// # Examples
     ///
@@ -391,7 +391,7 @@ impl<T> Slab<T> {
         self.len
     }
 
-    /// Returns `true` if no values are stored in the slab
+    /// Return `true` if there are no values stored in the slab.
     ///
     /// # Examples
     ///
@@ -407,7 +407,7 @@ impl<T> Slab<T> {
         self.len == 0
     }
 
-    /// Returns an iterator over the slab
+    /// Return an iterator over the slab.
     ///
     /// This function should generally be **avoided** as it is not efficient.
     /// Iterators must iterate over every slot in the slab even if it is
@@ -438,7 +438,7 @@ impl<T> Slab<T> {
         }
     }
 
-    /// Returns an iterator that allows modifying each value.
+    /// Return an iterator that allows modifying each value.
     ///
     /// This function should generally be **avoided** as it is not efficient.
     /// Iterators must iterate over every slot in the slab even if it is
@@ -470,7 +470,7 @@ impl<T> Slab<T> {
         }
     }
 
-    /// Returns a reference to the value associated with the given key
+    /// Return a reference to the value associated with the given key.
     ///
     /// If the given key is not associated with a value, then `None` is
     /// returned.
@@ -492,7 +492,7 @@ impl<T> Slab<T> {
         }
     }
 
-    /// Returns a mutable reference to the value associated with the given key
+    /// Return a mutable reference to the value associated with the given key.
     ///
     /// If the given key is not associated with a value, then `None` is
     /// returned.
@@ -516,7 +516,7 @@ impl<T> Slab<T> {
         }
     }
 
-    /// Returns a reference to the value associated with the given key without
+    /// Return a reference to the value associated with the given key without
     /// performing bounds checking.
     ///
     /// This function should be used with care.
@@ -539,7 +539,7 @@ impl<T> Slab<T> {
         }
     }
 
-    /// Returns a mutable reference to the value associated with the given key
+    /// Return a mutable reference to the value associated with the given key
     /// without performing bounds checking.
     ///
     /// This function should be used with care.
@@ -565,7 +565,7 @@ impl<T> Slab<T> {
         }
     }
 
-    /// Insert a value in the slab, returning key assigned to the value
+    /// Insert a value in the slab, returning key assigned to the value.
     ///
     /// The returned key can later be used to retrieve or remove the value using indexed
     /// lookup and `remove`. Additional capacity is allocated if needed. See
@@ -591,7 +591,7 @@ impl<T> Slab<T> {
         key
     }
 
-    /// Returns a handle to a vacant entry allowing for further manipulation.
+    /// Return a handle to a vacant entry allowing for further manipulation.
     ///
     /// This function is useful when creating values that must contain their
     /// slab key. The returned `VacantEntry` reserves a slot in the slab and is
@@ -641,7 +641,7 @@ impl<T> Slab<T> {
         }
     }
 
-    /// Removes and returns the value associated with the given key.
+    /// Remove and return the value associated with the given key.
     ///
     /// The key is then released and may be associated with future stored
     /// values.
@@ -681,7 +681,7 @@ impl<T> Slab<T> {
         }
     }
 
-    /// Returns `true` if a value is associated with the given key.
+    /// Return `true` if a value is associated with the given key.
     ///
     /// # Examples
     ///
