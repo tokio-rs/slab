@@ -99,7 +99,7 @@
 //! [`Slab::with_capacity`]: struct.Slab.html#with_capacity
 
 #![deny(warnings, missing_docs, missing_debug_implementations)]
-#![doc(html_root_url = "https://docs.rs/slab/0.4")]
+#![doc(html_root_url = "https://docs.rs/slab/0.4.1")]
 #![crate_name = "slab"]
 
 use std::{fmt, mem};
