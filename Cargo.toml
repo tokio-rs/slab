@@ -18,5 +18,5 @@ documentation = "https://docs.rs/slab/0.4.2/slab/"
 homepage = "https://github.com/carllerche/slab"
 repository = "https://github.com/carllerche/slab"
 readme = "README.md"
-keywords = ["slab", "allocator"]
+keywords = ["slab", "allocator", "no_std"]
 categories = ["memory-management", "data-structures"]
