@@ -101,10 +101,15 @@
 #![deny(warnings, missing_docs, missing_debug_implementations)]
 #![doc(html_root_url = "https://docs.rs/slab/0.4.1")]
 #![crate_name = "slab"]
+#![feature(alloc)]
+#![no_std]
 
-use std::{fmt, mem};
-use std::iter::IntoIterator;
-use std::ops;
+extern crate alloc;
+
+use core::{fmt, mem};
+use core::iter::IntoIterator;
+use core::ops;
+use alloc::prelude::Vec;
 
 /// Pre-allocated storage for a uniform data type
 ///
@@ -160,13 +165,13 @@ pub struct VacantEntry<'a, T: 'a> {
 
 /// An iterator over the values stored in the `Slab`
 pub struct Iter<'a, T: 'a> {
-    entries: std::slice::Iter<'a, Entry<T>>,
+    entries: alloc::slice::Iter<'a, Entry<T>>,
     curr: usize,
 }
 
 /// A mutable iterator over the values stored in the `Slab`
 pub struct IterMut<'a, T: 'a> {
-    entries: std::slice::IterMut<'a, Entry<T>>,
+    entries: alloc::slice::IterMut<'a, Entry<T>>,
     curr: usize,
 }
 
