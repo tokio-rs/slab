@@ -102,9 +102,9 @@
 #![doc(html_root_url = "https://docs.rs/slab/0.4.1")]
 #![crate_name = "slab"]
 
-use std::{fmt, mem};
 use std::iter::IntoIterator;
 use std::ops;
+use std::{fmt, mem};
 
 /// Pre-allocated storage for a uniform data type
 ///
@@ -628,9 +628,7 @@ impl<T> Slab<T> {
             self.entries.push(Entry::Occupied(val));
             self.next = key + 1;
         } else {
-            let prev = mem::replace(
-                &mut self.entries[key],
-                Entry::Occupied(val));
+            let prev = mem::replace(&mut self.entries[key], Entry::Occupied(val));
 
             match prev {
                 Entry::Vacant(next) => {
@@ -663,9 +661,7 @@ impl<T> Slab<T> {
     /// ```
     pub fn remove(&mut self, key: usize) -> T {
         // Swap the entry at the provided value
-        let prev = mem::replace(
-            &mut self.entries[key],
-            Entry::Vacant(self.next));
+        let prev = mem::replace(&mut self.entries[key], Entry::Vacant(self.next));
 
         match prev {
             Entry::Occupied(val) => {
@@ -697,12 +693,11 @@ impl<T> Slab<T> {
     /// assert!(!slab.contains(hello));
     /// ```
     pub fn contains(&self, key: usize) -> bool {
-        self.entries.get(key)
-            .map(|e| {
-                match *e {
-                    Entry::Occupied(_) => true,
-                    _ => false,
-                }
+        self.entries
+            .get(key)
+            .map(|e| match *e {
+                Entry::Occupied(_) => true,
+                _ => false,
             })
             .unwrap_or(false)
     }
@@ -732,7 +727,8 @@ impl<T> Slab<T> {
     /// assert_eq!(2, slab.len());
     /// ```
     pub fn retain<F>(&mut self, mut f: F)
-        where F: FnMut(usize, &mut T) -> bool
+    where
+        F: FnMut(usize, &mut T) -> bool,
     {
         for i in 0..self.entries.len() {
             let keep = match self.entries[i] {
@@ -785,16 +781,24 @@ impl<'a, T> IntoIterator for &'a mut Slab<T> {
     }
 }
 
-impl<T> fmt::Debug for Slab<T> where T: fmt::Debug {
+impl<T> fmt::Debug for Slab<T>
+where
+    T: fmt::Debug,
+{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt,
-               "Slab {{ len: {}, cap: {} }}",
-               self.len,
-               self.capacity())
+        write!(
+            fmt,
+            "Slab {{ len: {}, cap: {} }}",
+            self.len,
+            self.capacity()
+        )
     }
 }
 
-impl<'a, T: 'a> fmt::Debug for Iter<'a, T> where T: fmt::Debug {
+impl<'a, T: 'a> fmt::Debug for Iter<'a, T>
+where
+    T: fmt::Debug,
+{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Iter")
             .field("curr", &self.curr)
@@ -803,7 +807,10 @@ impl<'a, T: 'a> fmt::Debug for Iter<'a, T> where T: fmt::Debug {
     }
 }
 
-impl<'a, T: 'a> fmt::Debug for IterMut<'a, T> where T: fmt::Debug {
+impl<'a, T: 'a> fmt::Debug for IterMut<'a, T>
+where
+    T: fmt::Debug,
+{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("IterMut")
             .field("curr", &self.curr)
