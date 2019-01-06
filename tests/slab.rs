@@ -155,6 +155,22 @@ fn reserve_exact_does_not_allocate_if_available() {
 }
 
 #[test]
+#[should_panic(expected = "capacity overflow")]
+fn reserve_does_panic_with_capacity_overflow() {
+    let mut slab = Slab::with_capacity(10);
+    slab.insert(true);
+    slab.reserve(std::usize::MAX);
+}
+
+#[test]
+#[should_panic(expected = "capacity overflow")]
+fn reserve_exact_does_panic_with_capacity_overflow() {
+    let mut slab = Slab::with_capacity(10);
+    slab.insert(true);
+    slab.reserve_exact(std::usize::MAX);
+}
+
+#[test]
 fn retain() {
     let mut slab = Slab::with_capacity(2);
 

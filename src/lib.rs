@@ -274,7 +274,7 @@ impl<T> Slab<T> {
         if self.capacity() - self.len >= additional {
             return;
         }
-        let need_add = self.len + additional - self.entries.len();
+        let need_add = additional - (self.entries.len() - self.len);
         self.entries.reserve(need_add);
     }
 
@@ -308,7 +308,7 @@ impl<T> Slab<T> {
         if self.capacity() - self.len >= additional {
             return;
         }
-        let need_add = self.len + additional - self.entries.len();
+        let need_add = additional - (self.entries.len() - self.len);
         self.entries.reserve_exact(need_add);
     }
 
