@@ -697,13 +697,10 @@ impl<T> Slab<T> {
     /// assert!(!slab.contains(hello));
     /// ```
     pub fn contains(&self, key: usize) -> bool {
-        self.entries
-            .get(key)
-            .map(|e| match *e {
-                Entry::Occupied(_) => true,
-                _ => false,
-            })
-            .unwrap_or(false)
+        match self.entries.get(key) {
+            Some(&Entry::Occupied(_)) => true,
+            _ => false,
+        }
     }
 
     /// Retain only the elements specified by the predicate.
