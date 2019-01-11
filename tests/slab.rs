@@ -192,10 +192,14 @@ fn iter() {
         slab.insert(i);
     }
 
-    let vals: Vec<_> = slab.iter().enumerate().map(|(i, (key, val))| {
-        assert_eq!(i, key);
-        *val
-    }).collect();
+    let vals: Vec<_> = slab
+        .iter()
+        .enumerate()
+        .map(|(i, (key, val))| {
+            assert_eq!(i, key);
+            *val
+        })
+        .collect();
     assert_eq!(vals, vec![0, 1, 2, 3]);
 
     slab.remove(1);
