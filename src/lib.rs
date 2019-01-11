@@ -104,6 +104,7 @@
 
 use std::iter::IntoIterator;
 use std::ops;
+use std::vec;
 use std::{fmt, mem};
 
 /// Pre-allocated storage for a uniform data type
@@ -169,6 +170,9 @@ pub struct IterMut<'a, T: 'a> {
     entries: std::slice::IterMut<'a, Entry<T>>,
     curr: usize,
 }
+
+/// A draining iterator for `Slab`
+pub struct Drain<'a, T: 'a>(vec::Drain<'a, Entry<T>>);
 
 #[derive(Clone)]
 enum Entry<T> {
@@ -741,6 +745,39 @@ impl<T> Slab<T> {
             }
         }
     }
+
+    /// Return a draining iterator that removes all elements from the slab and
+    /// yields the removed items.
+    ///
+    /// Note: Elements are removed even if the iterator is only partially
+    /// consumed or not consumed at all.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// let _ = slab.insert(0);
+    /// let _ = slab.insert(1);
+    /// let _ = slab.insert(2);
+    ///
+    /// {
+    ///     let mut drain = slab.drain();
+    ///
+    ///     assert_eq!(Some(0), drain.next());
+    ///     assert_eq!(Some(1), drain.next());
+    ///     assert_eq!(Some(2), drain.next());
+    ///     assert_eq!(None, drain.next());
+    /// }
+    ///
+    /// assert!(slab.is_empty());
+    /// ```
+    pub fn drain(&mut self) -> Drain<T> {
+        self.len = 0;
+        self.next = 0;
+        Drain(self.entries.drain(..))
+    }
 }
 
 impl<T> ops::Index<usize> for Slab<T> {
@@ -816,6 +853,12 @@ where
             .field("curr", &self.curr)
             .field("remaining", &self.entries.len())
             .finish()
+    }
+}
+
+impl<'a, T: 'a> fmt::Debug for Drain<'a, T> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Drain").finish()
     }
 }
 
@@ -910,6 +953,22 @@ impl<'a, T> Iterator for IterMut<'a, T> {
 
             if let Entry::Occupied(ref mut v) = *entry {
                 return Some((curr, v));
+            }
+        }
+
+        None
+    }
+}
+
+// ===== Drain =====
+
+impl<'a, T> Iterator for Drain<'a, T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<T> {
+        while let Some(entry) = self.0.next() {
+            if let Entry::Occupied(v) = entry {
+                return Some(v);
             }
         }
 

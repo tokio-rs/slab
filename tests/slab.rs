@@ -264,3 +264,38 @@ fn clear() {
     let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();
     assert!(vals.is_empty());
 }
+
+#[test]
+fn fully_consumed_drain() {
+    let mut slab = Slab::new();
+
+    for i in 0..3 {
+        slab.insert(i);
+    }
+
+    {
+        let mut drain = slab.drain();
+        assert_eq!(Some(0), drain.next());
+        assert_eq!(Some(1), drain.next());
+        assert_eq!(Some(2), drain.next());
+        assert_eq!(None, drain.next());
+    }
+
+    assert!(slab.is_empty());
+}
+
+#[test]
+fn partially_consumed_drain() {
+    let mut slab = Slab::new();
+
+    for i in 0..3 {
+        slab.insert(i);
+    }
+
+    {
+        let mut drain = slab.drain();
+        assert_eq!(Some(0), drain.next());
+    }
+
+    assert!(slab.is_empty())
+}
