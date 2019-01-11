@@ -1,8 +1,8 @@
 #![doc(html_root_url = "https://docs.rs/slab/0.4.2")]
 #![deny(warnings, missing_docs, missing_debug_implementations)]
 #![cfg_attr(test, deny(warnings, unreachable_pub))]
-#![crate_name = "slab"]//! Pre-allocated storage for a uniform data type.
 
+//! Pre-allocated storage for a uniform data type.
 //!
 //! `Slab` provides pre-allocated storage for a single data type. If many values
 //! of a single type are being allocated, it can be more efficient to
