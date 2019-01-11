@@ -1,4 +1,7 @@
-//! Pre-allocated storage for a uniform data type.
+#![deny(warnings, missing_docs, missing_debug_implementations, unreachable_pub)]
+#![doc(html_root_url = "https://docs.rs/slab/0.4.2")]
+#![crate_name = "slab"]//! Pre-allocated storage for a uniform data type.
+
 //!
 //! `Slab` provides pre-allocated storage for a single data type. If many values
 //! of a single type are being allocated, it can be more efficient to
@@ -97,10 +100,6 @@
 //! called and a new slot is created.
 //!
 //! [`Slab::with_capacity`]: struct.Slab.html#with_capacity
-
-#![deny(warnings, missing_docs, missing_debug_implementations, unreachable_pub)]
-#![doc(html_root_url = "https://docs.rs/slab/0.4.1")]
-#![crate_name = "slab"]
 
 use std::iter::IntoIterator;
 use std::ops;
