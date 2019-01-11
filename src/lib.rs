@@ -1,5 +1,6 @@
-#![deny(warnings, missing_docs, missing_debug_implementations, unreachable_pub)]
 #![doc(html_root_url = "https://docs.rs/slab/0.4.2")]
+#![deny(warnings, missing_docs, missing_debug_implementations)]
+#![cfg_attr(test, deny(warnings, unreachable_pub))]
 #![crate_name = "slab"]//! Pre-allocated storage for a uniform data type.
 
 //!
