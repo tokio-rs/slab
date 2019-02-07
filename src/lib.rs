@@ -665,7 +665,11 @@ impl<T> Slab<T> {
     /// ```
     pub fn remove(&mut self, key: usize) -> T {
         // Swap the entry at the provided value
-        let prev = mem::replace(&mut self.entries[key], Entry::Vacant(self.next));
+        let prev = if key == self.entries.len() - 1 {
+            self.entries.pop().unwrap()
+        } else {
+            mem::replace(&mut self.entries[key], Entry::Vacant(self.next))
+        };
 
         match prev {
             Entry::Occupied(val) => {
@@ -675,7 +679,9 @@ impl<T> Slab<T> {
             }
             _ => {
                 // Woops, the entry is actually vacant, restore the state
-                self.entries[key] = prev;
+                if self.entries.len() > key {
+                    self.entries[key] = prev;
+                }
                 panic!("invalid key");
             }
         }
