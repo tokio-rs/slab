@@ -82,14 +82,21 @@ fn get_vacant_entry_without_using() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "invalid key")]
 fn invalid_get_panics() {
     let slab = Slab::<usize>::with_capacity(1);
-    slab[0];
+    let _ = &slab[0];
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "invalid key")]
+fn invalid_get_mut_panics() {
+    let mut slab = Slab::<usize>::new();
+    let _ = &mut slab[0];
+}
+
+#[test]
+#[should_panic(expected = "invalid key")]
 fn double_remove_panics() {
     let mut slab = Slab::<usize>::with_capacity(1);
     let key = slab.insert(123);
@@ -98,7 +105,7 @@ fn double_remove_panics() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "invalid key")]
 fn invalid_remove_panics() {
     let mut slab = Slab::<usize>::with_capacity(1);
     slab.remove(0);

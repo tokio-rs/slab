@@ -632,14 +632,11 @@ impl<T> Slab<T> {
             self.entries.push(Entry::Occupied(val));
             self.next = key + 1;
         } else {
-            let prev = mem::replace(&mut self.entries[key], Entry::Occupied(val));
-
-            match prev {
-                Entry::Vacant(next) => {
-                    self.next = next;
-                }
+            self.next = match self.entries.get(key) {
+                Some(&Entry::Vacant(next)) => next,
                 _ => unreachable!(),
-            }
+            };
+            self.entries[key] = Entry::Occupied(val);
         }
     }
 
@@ -664,21 +661,23 @@ impl<T> Slab<T> {
     /// assert!(!slab.contains(hello));
     /// ```
     pub fn remove(&mut self, key: usize) -> T {
-        // Swap the entry at the provided value
-        let prev = mem::replace(&mut self.entries[key], Entry::Vacant(self.next));
+        if let Some(entry) = self.entries.get_mut(key) {
+            // Swap the entry at the provided value
+            let prev = mem::replace(entry, Entry::Vacant(self.next));
 
-        match prev {
-            Entry::Occupied(val) => {
-                self.len -= 1;
-                self.next = key;
-                val
-            }
-            _ => {
-                // Woops, the entry is actually vacant, restore the state
-                self.entries[key] = prev;
-                panic!("invalid key");
+            match prev {
+                Entry::Occupied(val) => {
+                    self.len -= 1;
+                    self.next = key;
+                    return val;
+                }
+                _ => {
+                    // Woops, the entry is actually vacant, restore the state
+                    *entry = prev;
+                }
             }
         }
+        panic!("invalid key");
     }
 
     /// Return `true` if a value is associated with the given key.
@@ -781,8 +780,8 @@ impl<T> ops::Index<usize> for Slab<T> {
     type Output = T;
 
     fn index(&self, key: usize) -> &T {
-        match self.entries[key] {
-            Entry::Occupied(ref v) => v,
+        match self.entries.get(key) {
+            Some(&Entry::Occupied(ref v)) => v,
             _ => panic!("invalid key"),
         }
     }
@@ -790,8 +789,8 @@ impl<T> ops::Index<usize> for Slab<T> {
 
 impl<T> ops::IndexMut<usize> for Slab<T> {
     fn index_mut(&mut self, key: usize) -> &mut T {
-        match self.entries[key] {
-            Entry::Occupied(ref mut v) => v,
+        match self.entries.get_mut(key) {
+            Some(&mut Entry::Occupied(ref mut v)) => v,
             _ => panic!("invalid key"),
         }
     }
@@ -887,8 +886,8 @@ impl<'a, T> VacantEntry<'a, T> {
     pub fn insert(self, val: T) -> &'a mut T {
         self.slab.insert_at(self.key, val);
 
-        match self.slab.entries[self.key] {
-            Entry::Occupied(ref mut v) => v,
+        match self.slab.entries.get_mut(self.key) {
+            Some(&mut Entry::Occupied(ref mut v)) => v,
             _ => unreachable!(),
         }
     }
