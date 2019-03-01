@@ -312,12 +312,15 @@ impl<T> Slab<T> {
         self.entries.reserve_exact(need_add);
     }
 
-    /// Shrink the capacity of the slab as much as possible.
+    /// Shrink the capacity of the slab as much as possible without invalidating keys.
     ///
-    /// It will drop down as close as possible to the length but the allocator
-    /// may still inform the vector that there is space for a few more elements.
-    /// Also, since values are not moved, the slab cannot shrink past any stored
-    /// values.
+    /// Because values cannot be moved to a different index, the slab cannot
+    /// shrink past any stored values.
+    /// It will drop down as close as possible to the length but the allocator may
+    /// still inform the underlying vector that there is space for a few more elements.
+    ///
+    /// This function can take O(n) time even when the capacity cannot be reduced
+    /// or the allocation is shrunk in place. Repeated calls run in O(1) though.
     ///
     /// # Examples
     ///
@@ -329,31 +332,70 @@ impl<T> Slab<T> {
     ///     slab.insert(i);
     /// }
     ///
-    /// assert_eq!(slab.capacity(), 10);
     /// slab.shrink_to_fit();
-    /// assert!(slab.capacity() >= 3);
+    /// assert!(slab.capacity() >= 3 && slab.capacity() < 10);
     /// ```
     ///
-    /// In this case, even though two values are removed, the slab cannot shrink
-    /// past the last value.
+    /// The slab cannot shrink past the last present value even if previous
+    /// values are removed:
     ///
     /// ```
     /// # use slab::*;
     /// let mut slab = Slab::with_capacity(10);
     ///
-    /// for i in 0..3 {
+    /// for i in 0..4 {
     ///     slab.insert(i);
     /// }
     ///
     /// slab.remove(0);
-    /// slab.remove(1);
+    /// slab.remove(3);
     ///
-    /// assert_eq!(slab.capacity(), 10);
     /// slab.shrink_to_fit();
-    /// assert!(slab.capacity() >= 3);
+    /// assert!(slab.capacity() >= 3 && slab.capacity() < 10);
     /// ```
     pub fn shrink_to_fit(&mut self) {
+        // Remove all vacant entries after the last occupied one, so that
+        // the capacity can be reduced to what is actually needed.
+        // If the slab is empty the vector can simply be cleared, but that
+        // optimization would not affect time complexity when T: Drop.
+        let len_before = self.entries.len();
+        while let Some(&Entry::Vacant(_)) = self.entries.last() {
+            self.entries.pop();
+        }
+
+        // Removing entries breaks the list of vacant entries,
+        // so it nust be repaired
+        if self.entries.len() != len_before {
+            // Ssome vacant entries were removed, so the list now likely¹
+            // either contains references to the removed entries, or has an
+            // invalid end marker. Fix this by recreating the list.
+            self.recreate_vacant_list();
+            // ¹: If the removed entries formed the tail of the list, with the
+            // most recently popped entry being the head of them, (so that its
+            // index is now the end marker) the list is still valid.
+            // Checking for that unlikely scenario of this infrequently called
+            // is not worth the code complexity.
+        }
+
         self.entries.shrink_to_fit();
+    }
+
+    /// Iterate through all entries to recreate and repair the vacant list.
+    /// self.len must be correct and is not modified.
+    fn recreate_vacant_list(&mut self) {
+        self.next = self.entries.len();
+        // If there are any vacant entries
+        if self.entries.len() != self.len {
+            // Iterate in reverse order so that lower keys are at the start of
+            // the vacant list. This way future shrinks are more likely to be
+            // able to remove vacant entries.
+            for (i, entry) in self.entries.iter_mut().enumerate().rev() {
+                if let Entry::Vacant(ref mut next) = *entry {
+                    *next = self.next;
+                    self.next = i;
+                }
+            }
+        }
     }
 
     /// Clear the slab of all values.

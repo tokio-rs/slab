@@ -266,6 +266,54 @@ fn clear() {
 }
 
 #[test]
+fn shrink_to_fit_empty() {
+    let mut slab = Slab::<bool>::with_capacity(20);
+    slab.shrink_to_fit();
+    assert_eq!(slab.capacity(), 0);
+}
+
+#[test]
+fn shrink_to_fit_no_vacant() {
+    let mut slab = Slab::with_capacity(20);
+    slab.insert(String::new());
+    slab.shrink_to_fit();
+    assert!(slab.capacity() < 10);
+}
+
+#[test]
+fn shrink_to_fit_doesnt_move() {
+    let mut slab = Slab::with_capacity(8);
+    slab.insert("foo");
+    let bar = slab.insert("bar");
+    slab.insert("baz");
+    let quux = slab.insert("quux");
+    slab.remove(quux);
+    slab.remove(bar);
+    slab.shrink_to_fit();
+    assert_eq!(slab.len(), 2);
+    assert!(slab.capacity() >= 3);
+    assert_eq!(slab.get(0), Some(&"foo"));
+    assert_eq!(slab.get(2), Some(&"baz"));
+    assert_eq!(slab.vacant_entry().key(), bar);
+}
+
+#[test]
+fn shrink_to_fit_doesnt_recreate_list_when_nothing_can_be_done() {
+    let mut slab = Slab::with_capacity(16);
+    for i in 0..4 {
+        slab.insert(Box::new(i));
+    }
+    slab.remove(0);
+    slab.remove(2);
+    slab.remove(1);
+    assert_eq!(slab.vacant_entry().key(), 1);
+    slab.shrink_to_fit();
+    assert_eq!(slab.len(), 1);
+    assert!(slab.capacity() >= 4);
+    assert_eq!(slab.vacant_entry().key(), 1);
+}
+
+#[test]
 fn fully_consumed_drain() {
     let mut slab = Slab::new();
 
