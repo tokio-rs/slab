@@ -1088,6 +1088,19 @@ impl<T> Iterator for IntoIter<T> {
     }
 }
 
+impl<T> DoubleEndedIterator for IntoIter<T> {
+    fn next_back(&mut self) -> Option<(usize, T)> {
+        while let Some(entry) = self.entries.next_back() {
+            if let Entry::Occupied(v) = entry {
+                let key = self.curr + self.entries.len();
+                return Some((key, v));
+            }
+        }
+
+        None
+    }
+}
+
 // ===== Iter =====
 
 impl<'a, T> Iterator for Iter<'a, T> {
@@ -1108,6 +1121,19 @@ impl<'a, T> Iterator for Iter<'a, T> {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         (0, Some(self.entries.len()))
+    }
+}
+
+impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
+    fn next_back(&mut self) -> Option<(usize, &'a T)> {
+        while let Some(entry) = self.entries.next_back() {
+            if let Entry::Occupied(ref v) = *entry {
+                let key = self.curr + self.entries.len();
+                return Some((key, v));
+            }
+        }
+
+        None
     }
 }
 
@@ -1134,6 +1160,19 @@ impl<'a, T> Iterator for IterMut<'a, T> {
     }
 }
 
+impl<'a, T> DoubleEndedIterator for IterMut<'a, T> {
+    fn next_back(&mut self) -> Option<(usize, &'a mut T)> {
+        while let Some(entry) = self.entries.next_back() {
+            if let Entry::Occupied(ref mut v) = *entry {
+                let key = self.curr + self.entries.len();
+                return Some((key, v));
+            }
+        }
+
+        None
+    }
+}
+
 // ===== Drain =====
 
 impl<'a, T> Iterator for Drain<'a, T> {
@@ -1151,5 +1190,17 @@ impl<'a, T> Iterator for Drain<'a, T> {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         (0, Some(self.0.len()))
+    }
+}
+
+impl<'a, T> DoubleEndedIterator for Drain<'a, T> {
+    fn next_back(&mut self) -> Option<T> {
+        while let Some(entry) = self.0.next_back() {
+            if let Entry::Occupied(v) = entry {
+                return Some(v);
+            }
+        }
+
+        None
     }
 }
