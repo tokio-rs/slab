@@ -1082,6 +1082,10 @@ impl<T> Iterator for IntoIter<T> {
 
         None
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(self.entries.len()))
+    }
 }
 
 // ===== Iter =====
@@ -1100,6 +1104,10 @@ impl<'a, T> Iterator for Iter<'a, T> {
         }
 
         None
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(self.entries.len()))
     }
 }
 
@@ -1120,6 +1128,10 @@ impl<'a, T> Iterator for IterMut<'a, T> {
 
         None
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(self.entries.len()))
+    }
 }
 
 // ===== Drain =====
@@ -1135,5 +1147,9 @@ impl<'a, T> Iterator for Drain<'a, T> {
         }
 
         None
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(self.0.len()))
     }
 }
