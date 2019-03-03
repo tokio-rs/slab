@@ -102,7 +102,7 @@
 //!
 //! [`Slab::with_capacity`]: struct.Slab.html#with_capacity
 
-use std::iter::IntoIterator;
+use std::iter::{FromIterator, IntoIterator};
 use std::ops;
 use std::vec;
 use std::{fmt, mem};
@@ -857,6 +857,77 @@ impl<'a, T> IntoIterator for &'a mut Slab<T> {
 
     fn into_iter(self) -> IterMut<'a, T> {
         self.iter_mut()
+    }
+}
+
+/// Create a slab from an iterator of key-value pairs.
+///
+/// If the iterator produces duplicate keys, the previous value is replaced with the later one.
+/// The keys does not need to be sorted beforehand, and this function always
+/// takes O(n) time.
+/// Note that the returned slab will use space proportional to the largest key,
+/// so don't use `Slab` with untrusted keys.
+///
+/// # Examples
+///
+/// ```
+/// # use slab::*;
+///
+/// let vec = vec![(2,'a'), (6,'b'), (7,'c')];
+/// let slab = vec.into_iter().collect::<Slab<char>>();
+/// assert_eq!(slab.len(), 3);
+/// assert!(slab.capacity() >= 8);
+/// assert_eq!(slab[2], 'a');
+/// ```
+///
+/// With duplicate and unsorted keys:
+///
+/// ```
+/// # use slab::*;
+///
+/// let vec = vec![(20,'a'), (10,'b'), (11,'c'), (10,'d')];
+/// let slab = vec.into_iter().collect::<Slab<char>>();
+/// assert_eq!(slab.len(), 3);
+/// assert_eq!(slab[10], 'd');
+/// ```
+impl<T> FromIterator<(usize, T)> for Slab<T> {
+    fn from_iter<I>(iterable: I) -> Self
+    where
+        I: IntoIterator<Item = (usize, T)>,
+    {
+        let iterator = iterable.into_iter();
+        let mut slab = Self::with_capacity(iterator.size_hint().0);
+
+        let mut vacant_list_broken = false;
+        for (key, value) in iterator {
+            if key < slab.entries.len() {
+                // iterator is not sorted, might need to recreate vacant list
+                if let Entry::Vacant(_) = slab.entries[key] {
+                    vacant_list_broken = true;
+                    slab.len += 1;
+                }
+                // if an element with this key already exists, replace it.
+                // This is consisent with HashMap and BtreeMap
+                slab.entries[key] = Entry::Occupied(value);
+            } else {
+                // insert holes as necessary
+                while slab.entries.len() < key {
+                    // add the entry to the start of the vacant list
+                    let next = slab.next;
+                    slab.next = slab.entries.len();
+                    slab.entries.push(Entry::Vacant(next));
+                }
+                slab.entries.push(Entry::Occupied(value));
+                slab.len += 1;
+            }
+        }
+        if slab.len == slab.entries.len() {
+            // no vacant enries, so next might not have been updated
+            slab.next = slab.entries.len();
+        } else if vacant_list_broken {
+            slab.recreate_vacant_list();
+        }
+        slab
     }
 }
 
