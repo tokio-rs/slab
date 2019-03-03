@@ -159,6 +159,12 @@ pub struct VacantEntry<'a, T: 'a> {
     key: usize,
 }
 
+/// A consuming iterator over the values stored in a `Slab`
+pub struct IntoIter<T> {
+    entries: std::vec::IntoIter<Entry<T>>,
+    curr: usize,
+}
+
 /// An iterator over the values stored in the `Slab`
 pub struct Iter<'a, T: 'a> {
     entries: std::slice::Iter<'a, Entry<T>>,
@@ -842,6 +848,18 @@ impl<T> ops::IndexMut<usize> for Slab<T> {
     }
 }
 
+impl<T> IntoIterator for Slab<T> {
+    type Item = (usize, T);
+    type IntoIter = IntoIter<T>;
+
+    fn into_iter(self) -> IntoIter<T> {
+        IntoIter {
+            entries: self.entries.into_iter(),
+            curr: 0,
+        }
+    }
+}
+
 impl<'a, T> IntoIterator for &'a Slab<T> {
     type Item = (usize, &'a T);
     type IntoIter = Iter<'a, T>;
@@ -945,6 +963,18 @@ where
     }
 }
 
+impl<T> fmt::Debug for IntoIter<T>
+where
+    T: fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Iter")
+            .field("curr", &self.curr)
+            .field("remaining", &self.entries.len())
+            .finish()
+    }
+}
+
 impl<'a, T: 'a> fmt::Debug for Iter<'a, T>
 where
     T: fmt::Debug,
@@ -1032,6 +1062,25 @@ impl<'a, T> VacantEntry<'a, T> {
     /// ```
     pub fn key(&self) -> usize {
         self.key
+    }
+}
+
+// ===== IntoIter =====
+
+impl<T> Iterator for IntoIter<T> {
+    type Item = (usize, T);
+
+    fn next(&mut self) -> Option<(usize, T)> {
+        while let Some(entry) = self.entries.next() {
+            let curr = self.curr;
+            self.curr += 1;
+
+            if let Entry::Occupied(v) = entry {
+                return Some((curr, v));
+            }
+        }
+
+        None
     }
 }
 

@@ -185,6 +185,26 @@ fn retain() {
 }
 
 #[test]
+fn into_iter() {
+    let mut slab = Slab::new();
+
+    for i in 0..8 {
+        slab.insert(i);
+    }
+    slab.remove(0);
+    slab.remove(4);
+    slab.remove(5);
+    slab.remove(7);
+
+    let vals: Vec<_> = slab
+        .into_iter()
+        .inspect(|&(key, val)| assert_eq!(key, val))
+        .map(|(_, val)| val)
+        .collect();
+    assert_eq!(vals, vec![1, 2, 3, 6]);
+}
+
+#[test]
 fn iter() {
     let mut slab = Slab::new();
 
