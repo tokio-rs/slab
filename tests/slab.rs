@@ -82,14 +82,21 @@ fn get_vacant_entry_without_using() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "invalid key")]
 fn invalid_get_panics() {
     let slab = Slab::<usize>::with_capacity(1);
-    slab[0];
+    let _ = &slab[0];
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "invalid key")]
+fn invalid_get_mut_panics() {
+    let mut slab = Slab::<usize>::new();
+    let _ = &mut slab[0];
+}
+
+#[test]
+#[should_panic(expected = "invalid key")]
 fn double_remove_panics() {
     let mut slab = Slab::<usize>::with_capacity(1);
     let key = slab.insert(123);
@@ -98,7 +105,7 @@ fn double_remove_panics() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "invalid key")]
 fn invalid_remove_panics() {
     let mut slab = Slab::<usize>::with_capacity(1);
     slab.remove(0);
@@ -152,6 +159,22 @@ fn reserve_exact_does_not_allocate_if_available() {
 
     slab.reserve(8);
     assert_eq!(10, slab.capacity());
+}
+
+#[test]
+#[should_panic(expected = "capacity overflow")]
+fn reserve_does_panic_with_capacity_overflow() {
+    let mut slab = Slab::with_capacity(10);
+    slab.insert(true);
+    slab.reserve(std::usize::MAX);
+}
+
+#[test]
+#[should_panic(expected = "capacity overflow")]
+fn reserve_exact_does_panic_with_capacity_overflow() {
+    let mut slab = Slab::with_capacity(10);
+    slab.insert(true);
+    slab.reserve_exact(std::usize::MAX);
 }
 
 #[test]
