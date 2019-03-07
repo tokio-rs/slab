@@ -208,6 +208,43 @@ fn retain() {
 }
 
 #[test]
+fn into_iter() {
+    let mut slab = Slab::new();
+
+    for i in 0..8 {
+        slab.insert(i);
+    }
+    slab.remove(0);
+    slab.remove(4);
+    slab.remove(5);
+    slab.remove(7);
+
+    let vals: Vec<_> = slab
+        .into_iter()
+        .inspect(|&(key, val)| assert_eq!(key, val))
+        .map(|(_, val)| val)
+        .collect();
+    assert_eq!(vals, vec![1, 2, 3, 6]);
+}
+
+#[test]
+fn into_iter_rev() {
+    let mut slab = Slab::new();
+
+    for i in 0..4 {
+        slab.insert(i);
+    }
+
+    let mut iter = slab.into_iter();
+    assert_eq!(iter.next_back(), Some((3, 3)));
+    assert_eq!(iter.next_back(), Some((2, 2)));
+    assert_eq!(iter.next(), Some((0, 0)));
+    assert_eq!(iter.next_back(), Some((1, 1)));
+    assert_eq!(iter.next_back(), None);
+    assert_eq!(iter.next(), None);
+}
+
+#[test]
 fn iter() {
     let mut slab = Slab::new();
 
@@ -229,6 +266,19 @@ fn iter() {
 
     let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();
     assert_eq!(vals, vec![0, 2, 3]);
+}
+
+#[test]
+fn iter_rev() {
+    let mut slab = Slab::new();
+
+    for i in 0..4 {
+        slab.insert(i);
+    }
+    slab.remove(0);
+
+    let vals = slab.iter().rev().collect::<Vec<_>>();
+    assert_eq!(vals, vec![(3, &3), (2, &2), (1, &1)]);
 }
 
 #[test]
@@ -255,6 +305,72 @@ fn iter_mut() {
 
     let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();
     assert_eq!(vals, vec![2, 3, 5]);
+}
+
+#[test]
+fn iter_mut_rev() {
+    let mut slab = Slab::new();
+
+    for i in 0..4 {
+        slab.insert(i);
+    }
+    slab.remove(2);
+
+    {
+        let mut iter = slab.iter_mut();
+        assert_eq!(iter.next(), Some((0, &mut 0)));
+        let mut prev_key = !0;
+        for (key, e) in iter.rev() {
+            *e += 10;
+            assert!(prev_key > key);
+            prev_key = key;
+        }
+    }
+
+    assert_eq!(slab[0], 0);
+    assert_eq!(slab[1], 11);
+    assert_eq!(slab[3], 13);
+    assert!(!slab.contains(2));
+}
+
+#[test]
+fn from_iterator_sorted() {
+    let mut slab = (0..5).map(|i| (i, i)).collect::<Slab<_>>();
+    assert_eq!(slab.len(), 5);
+    assert_eq!(slab[0], 0);
+    assert_eq!(slab[2], 2);
+    assert_eq!(slab[4], 4);
+    assert_eq!(slab.vacant_entry().key(), 5);
+}
+
+#[test]
+fn from_iterator_new_in_order() {
+    // all new keys come in increasing order, but existing keys are overwritten
+    let mut slab = [(0, 'a'), (1, 'a'), (1, 'b'), (0, 'b'), (9, 'a'), (0, 'c')]
+        .iter()
+        .cloned()
+        .collect::<Slab<_>>();
+    assert_eq!(slab.len(), 3);
+    assert_eq!(slab[0], 'c');
+    assert_eq!(slab[1], 'b');
+    assert_eq!(slab[9], 'a');
+    assert_eq!(slab.get(5), None);
+    assert_eq!(slab.vacant_entry().key(), 8);
+}
+
+#[test]
+fn from_iterator_unordered() {
+    let mut slab = vec![(1, "one"), (50, "fifty"), (3, "three"), (20, "twenty")]
+        .into_iter()
+        .collect::<Slab<_>>();
+    assert_eq!(slab.len(), 4);
+    assert_eq!(slab.vacant_entry().key(), 0);
+    let mut iter = slab.iter();
+    assert_eq!(iter.next(), Some((1, &"one")));
+    assert_eq!(iter.next(), Some((3, &"three")));
+    assert_eq!(iter.next(), Some((20, &"twenty")));
+    assert_eq!(iter.next(), Some((50, &"fifty")));
+    assert_eq!(iter.next(), None);
 }
 
 #[test]
@@ -286,6 +402,54 @@ fn clear() {
 
     let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();
     assert!(vals.is_empty());
+}
+
+#[test]
+fn shrink_to_fit_empty() {
+    let mut slab = Slab::<bool>::with_capacity(20);
+    slab.shrink_to_fit();
+    assert_eq!(slab.capacity(), 0);
+}
+
+#[test]
+fn shrink_to_fit_no_vacant() {
+    let mut slab = Slab::with_capacity(20);
+    slab.insert(String::new());
+    slab.shrink_to_fit();
+    assert!(slab.capacity() < 10);
+}
+
+#[test]
+fn shrink_to_fit_doesnt_move() {
+    let mut slab = Slab::with_capacity(8);
+    slab.insert("foo");
+    let bar = slab.insert("bar");
+    slab.insert("baz");
+    let quux = slab.insert("quux");
+    slab.remove(quux);
+    slab.remove(bar);
+    slab.shrink_to_fit();
+    assert_eq!(slab.len(), 2);
+    assert!(slab.capacity() >= 3);
+    assert_eq!(slab.get(0), Some(&"foo"));
+    assert_eq!(slab.get(2), Some(&"baz"));
+    assert_eq!(slab.vacant_entry().key(), bar);
+}
+
+#[test]
+fn shrink_to_fit_doesnt_recreate_list_when_nothing_can_be_done() {
+    let mut slab = Slab::with_capacity(16);
+    for i in 0..4 {
+        slab.insert(Box::new(i));
+    }
+    slab.remove(0);
+    slab.remove(2);
+    slab.remove(1);
+    assert_eq!(slab.vacant_entry().key(), 1);
+    slab.shrink_to_fit();
+    assert_eq!(slab.len(), 1);
+    assert!(slab.capacity() >= 4);
+    assert_eq!(slab.vacant_entry().key(), 1);
 }
 
 #[test]
@@ -321,4 +485,16 @@ fn partially_consumed_drain() {
     }
 
     assert!(slab.is_empty())
+}
+
+#[test]
+fn drain_rev() {
+    let mut slab = Slab::new();
+    for i in 0..10 {
+        slab.insert(i);
+    }
+    slab.remove(9);
+
+    let vals: Vec<u64> = slab.drain().rev().collect();
+    assert_eq!(vals, (0..9).rev().collect::<Vec<u64>>());
 }
