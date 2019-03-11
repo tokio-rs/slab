@@ -617,6 +617,57 @@ impl<T> Slab<T> {
         }
     }
 
+    /// Get the key for an element in the slab.
+    ///
+    /// The reference must point to an element owned by the slab.
+    /// Otherwise this function will panic.
+    /// This is a constant-time operation because the key can be calculated
+    /// from the reference with pointer arithmetic.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the reference does not point to an element
+    /// of the slab.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    ///
+    /// let mut slab = Slab::new();
+    /// let key = slab.insert(String::from("foo"));
+    /// let value = &slab[key];
+    /// assert_eq!(slab.key_of(value), key);
+    /// ```
+    ///
+    /// Values are not compared, so passing a reference to a different locaton
+    /// will result in a panic:
+    ///
+    /// ```should_panic
+    /// # use slab::*;
+    ///
+    /// let mut slab = Slab::new();
+    /// let key = slab.insert(0);
+    /// let bad = &0;
+    /// slab.key_of(bad); // this will panic
+    /// unreachable!();
+    /// ```
+    pub fn key_of(&self, present_element: &T) -> usize {
+        let element_ptr = present_element as *const T as usize;
+        let base_ptr = self.entries.as_ptr() as usize;
+        // Use wrapping subtraction in case the reference is bad
+        let byte_offset = element_ptr.wrapping_sub(base_ptr);
+        // The division rounds away any offset of T inside Entry
+        // The size of Entry<T> is never zero even if T is due to Vacant(usize)
+        let key = byte_offset / mem::size_of::<Entry<T>>();
+        // Prevent returning unspecified (but out of bounds) values
+        if key >= self.entries.len() {
+            panic!("The reference points to a value outside this slab");
+        }
+        // The reference cannot point to a vacant entry, because then it would not be valid
+        key
+    }
+
     /// Insert a value in the slab, returning key assigned to the value.
     ///
     /// The returned key can later be used to retrieve or remove the value using indexed

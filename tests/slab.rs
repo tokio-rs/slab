@@ -124,6 +124,34 @@ fn slab_get_mut() {
 }
 
 #[test]
+fn key_of_tagged() {
+    let mut slab = Slab::new();
+    slab.insert(0);
+    assert_eq!(slab.key_of(&slab[0]), 0);
+}
+
+#[test]
+fn key_of_layout_optimizable() {
+    // Entry<&str> doesn't need a discriminant tag because it can use the
+    // nonzero-ness of ptr and store Vacant's next at the same offset as len
+    let mut slab = Slab::new();
+    slab.insert("foo");
+    slab.insert("bar");
+    let third = slab.insert("baz");
+    slab.insert("quux");
+    assert_eq!(slab.key_of(&slab[third]), third);
+}
+
+#[test]
+fn key_of_zst() {
+    let mut slab = Slab::new();
+    slab.insert(());
+    let second = slab.insert(());
+    slab.insert(());
+    assert_eq!(slab.key_of(&slab[second]), second);
+}
+
+#[test]
 fn reserve_does_not_allocate_if_available() {
     let mut slab = Slab::with_capacity(10);
     let mut keys = vec![];
