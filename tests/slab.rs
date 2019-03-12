@@ -2,6 +2,8 @@ extern crate slab;
 
 use slab::*;
 
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
+
 #[test]
 fn insert_get_remove_one() {
     let mut slab = Slab::new();
@@ -478,6 +480,137 @@ fn shrink_to_fit_doesnt_recreate_list_when_nothing_can_be_done() {
     assert_eq!(slab.len(), 1);
     assert!(slab.capacity() >= 4);
     assert_eq!(slab.vacant_entry().key(), 1);
+}
+
+#[test]
+fn compact_empty() {
+    let mut slab = Slab::new();
+    slab.compact(|_, _, _| panic!());
+    assert_eq!(slab.len(), 0);
+    assert_eq!(slab.capacity(), 0);
+    slab.reserve(20);
+    slab.compact(|_, _, _| panic!());
+    assert_eq!(slab.len(), 0);
+    assert_eq!(slab.capacity(), 0);
+    slab.insert(0);
+    slab.insert(1);
+    slab.insert(2);
+    slab.remove(1);
+    slab.remove(2);
+    slab.remove(0);
+    slab.compact(|_, _, _| panic!());
+    assert_eq!(slab.len(), 0);
+    assert_eq!(slab.capacity(), 0);
+}
+
+#[test]
+fn compact_no_moves_needed() {
+    let mut slab = Slab::new();
+    for i in 0..10 {
+        slab.insert(i);
+    }
+    slab.remove(8);
+    slab.remove(9);
+    slab.remove(6);
+    slab.remove(7);
+    slab.compact(|_, _, _| panic!());
+    assert_eq!(slab.len(), 6);
+    for ((index, &value), want) in slab.iter().zip(0..6) {
+        assert!(index == value);
+        assert_eq!(index, want);
+    }
+    assert!(slab.capacity() >= 6 && slab.capacity() < 10);
+}
+
+#[test]
+fn compact_moves_successfully() {
+    let mut slab = Slab::with_capacity(20);
+    for i in 0..10 {
+        slab.insert(i);
+    }
+    for &i in &[0, 5, 9, 6, 3] {
+        slab.remove(i);
+    }
+    let mut moved = 0;
+    slab.compact(|&mut v, from, to| {
+        assert!(from > to);
+        assert!(from >= 5);
+        assert!(to < 5);
+        assert_eq!(from, v);
+        moved += 1;
+        true
+    });
+    assert_eq!(slab.len(), 5);
+    assert_eq!(moved, 2);
+    assert_eq!(slab.vacant_entry().key(), 5);
+    assert!(slab.capacity() >= 5 && slab.capacity() < 20);
+    let mut iter = slab.iter();
+    assert_eq!(iter.next(), Some((0, &8)));
+    assert_eq!(iter.next(), Some((1, &1)));
+    assert_eq!(iter.next(), Some((2, &2)));
+    assert_eq!(iter.next(), Some((3, &7)));
+    assert_eq!(iter.next(), Some((4, &4)));
+    assert_eq!(iter.next(), None);
+}
+
+#[test]
+fn compact_doesnt_move_if_closure_errors() {
+    let mut slab = Slab::with_capacity(20);
+    for i in 0..10 {
+        slab.insert(i);
+    }
+    for &i in &[9, 3, 1, 4, 0] {
+        slab.remove(i);
+    }
+    slab.compact(|&mut v, from, to| {
+        assert!(from > to);
+        assert_eq!(from, v);
+        v != 6
+    });
+    assert_eq!(slab.len(), 5);
+    assert!(slab.capacity() >= 7 && slab.capacity() < 20);
+    assert_eq!(slab.vacant_entry().key(), 3);
+    let mut iter = slab.iter();
+    assert_eq!(iter.next(), Some((0, &8)));
+    assert_eq!(iter.next(), Some((1, &7)));
+    assert_eq!(iter.next(), Some((2, &2)));
+    assert_eq!(iter.next(), Some((5, &5)));
+    assert_eq!(iter.next(), Some((6, &6)));
+    assert_eq!(iter.next(), None);
+}
+
+#[test]
+fn compact_handles_closure_panic() {
+    let mut slab = Slab::new();
+    for i in 0..10 {
+        slab.insert(i);
+    }
+    for i in 1..6 {
+        slab.remove(i);
+    }
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        slab.compact(|&mut v, from, to| {
+            assert!(from > to);
+            assert_eq!(from, v);
+            if v == 7 {
+                panic!(());
+            }
+            true
+        })
+    }));
+    match result {
+        Err(ref payload) if payload.is::<()>() => {}
+        Err(bug) => resume_unwind(bug),
+        Ok(()) => unreachable!(),
+    }
+    assert_eq!(slab.len(), 5 - 1);
+    assert_eq!(slab.vacant_entry().key(), 3);
+    let mut iter = slab.iter();
+    assert_eq!(iter.next(), Some((0, &0)));
+    assert_eq!(iter.next(), Some((1, &9)));
+    assert_eq!(iter.next(), Some((2, &8)));
+    assert_eq!(iter.next(), Some((6, &6)));
+    assert_eq!(iter.next(), None);
 }
 
 #[test]

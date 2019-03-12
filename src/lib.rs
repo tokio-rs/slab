@@ -372,7 +372,7 @@ impl<T> Slab<T> {
         // Removing entries breaks the list of vacant entries,
         // so it nust be repaired
         if self.entries.len() != len_before {
-            // Ssome vacant entries were removed, so the list now likely¹
+            // Some vacant entries were removed, so the list now likely¹
             // either contains references to the removed entries, or has an
             // invalid end marker. Fix this by recreating the list.
             self.recreate_vacant_list();
@@ -390,18 +390,117 @@ impl<T> Slab<T> {
     /// self.len must be correct and is not modified.
     fn recreate_vacant_list(&mut self) {
         self.next = self.entries.len();
-        // If there are any vacant entries
-        if self.entries.len() != self.len {
-            // Iterate in reverse order so that lower keys are at the start of
-            // the vacant list. This way future shrinks are more likely to be
-            // able to remove vacant entries.
-            for (i, entry) in self.entries.iter_mut().enumerate().rev() {
-                if let Entry::Vacant(ref mut next) = *entry {
-                    *next = self.next;
-                    self.next = i;
-                }
+        // We can stop once we've found all vacant entries
+        let mut remaining_vacant = self.entries.len() - self.len;
+        // Iterate in reverse order so that lower keys are at the start of
+        // the vacant list. This way future shrinks are more likely to be
+        // able to remove vacant entries.
+        for (i, entry) in self.entries.iter_mut().enumerate().rev() {
+            if remaining_vacant == 0 {
+                break;
+            }
+            if let Entry::Vacant(ref mut next) = *entry {
+                *next = self.next;
+                self.next = i;
+                remaining_vacant -= 1;
             }
         }
+    }
+
+    /// Reduce the capacity as much as possible, changing the key for elements when necessary.
+    ///
+    /// To allow updating references to the elements which must be moved to a new key,
+    /// this function takes a closure which is called before moving each element.
+    /// The second and third parameters to the closure are the current key and
+    /// new key respectively.
+    /// In case changing the key for one element turns out not to be possible,
+    /// the move can be cancelled by returning `false` from the closure.
+    /// In that case no further attempts at relocating elements is made.
+    /// If the closure unwinds, the slab will be left in a consistent state,
+    /// but the value that the closure panicked on might be removed.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    ///
+    /// let mut slab = Slab::with_capacity(10);
+    /// let a = slab.insert('a');
+    /// slab.insert('b');
+    /// slab.insert('c');
+    /// slab.remove(a);
+    /// slab.compact(|&mut value, from, to| {
+    ///     assert_eq!((value, from, to), ('c', 2, 0));
+    ///     true
+    /// });
+    /// assert!(slab.capacity() >= 2 && slab.capacity() < 10);
+    /// ```
+    ///
+    /// The value is not moved when the closure returns `Err`:
+    ///
+    /// ```
+    /// # use slab::*;
+    ///
+    /// let mut slab = Slab::with_capacity(100);
+    /// let a = slab.insert('a');
+    /// let b = slab.insert('b');
+    /// slab.remove(a);
+    /// slab.compact(|&mut value, from, to| false);
+    /// assert_eq!(slab.iter().next(), Some((b, &'b')));
+    /// ```
+    pub fn compact<F>(&mut self, mut rekey: F)
+    where
+        F: FnMut(&mut T, usize, usize) -> bool,
+    {
+        // If the closure unwinds, we need to restore a valid list of vacant entries
+        struct CleanupGuard<'a, T: 'a> {
+            slab: &'a mut Slab<T>,
+            decrement: bool,
+        }
+        impl<'a, T: 'a> Drop for CleanupGuard<'a, T> {
+            fn drop(&mut self) {
+                if self.decrement {
+                    // Value was popped and not pushed back on
+                    self.slab.len -= 1;
+                }
+                self.slab.recreate_vacant_list();
+            }
+        }
+        let mut guard = CleanupGuard {
+            slab: self,
+            decrement: true,
+        };
+
+        let mut occupied_until = 0;
+        // While there are vacant entries
+        while guard.slab.entries.len() > guard.slab.len {
+            // Find a value that needs to be moved,
+            // by popping entries until we find an occopied one.
+            // (entries cannot be empty because 0 is not greater than anything)
+            if let Some(Entry::Occupied(mut value)) = guard.slab.entries.pop() {
+                // Found one, now find a vacant entry to move it to
+                while let Some(&Entry::Occupied(_)) = guard.slab.entries.get(occupied_until) {
+                    occupied_until += 1;
+                }
+                // Let the caller try to update references to the key
+                if !rekey(&mut value, guard.slab.entries.len(), occupied_until) {
+                    // Changing the key failed, so push the entry back on at its old index.
+                    guard.slab.entries.push(Entry::Occupied(value));
+                    guard.decrement = false;
+                    guard.slab.entries.shrink_to_fit();
+                    return;
+                    // Guard drop handles cleanup
+                }
+                // Put the value in its new spot
+                guard.slab.entries[occupied_until] = Entry::Occupied(value);
+                // ... and mark it as occupied (this is optional)
+                occupied_until += 1;
+            }
+        }
+        guard.slab.next = guard.slab.len;
+        guard.slab.entries.shrink_to_fit();
+        // Normal cleanup is not necessary
+        mem::forget(guard);
     }
 
     /// Clear the slab of all values.
