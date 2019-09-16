@@ -699,11 +699,12 @@ impl<T> Slab<T> {
         // bound by the slab itself, so this is safe.
         unsafe {
             match (ptr1.map(|p| &mut *p), ptr2.map(|p| &mut *p)) {
-                (Some(Entry::Occupied(val1)), Some(Entry::Occupied(val2))) => {
-                    (Some(val1), Some(val2))
-                }
-                (Some(Entry::Occupied(val1)), _) => (Some(val1), None),
-                (_, Some(Entry::Occupied(val2))) => (None, Some(val2)),
+                (
+                    Some(&mut Entry::Occupied(ref mut val1)),
+                    Some(&mut Entry::Occupied(ref mut val2)),
+                ) => (Some(val1), Some(val2)),
+                (Some(&mut Entry::Occupied(ref mut val1)), _) => (Some(val1), None),
+                (_, Some(&mut Entry::Occupied(ref mut val2))) => (None, Some(val2)),
                 (_, _) => (None, None),
             }
         }
@@ -784,7 +785,10 @@ impl<T> Slab<T> {
         let ptr1 = self.entries.get_mut(key1).map(|r| r as *mut Entry<T>);
         let ptr2 = self.entries.get_mut(key2).map(|r| r as *mut Entry<T>);
         match (ptr1.map(|p| &mut *p), ptr2.map(|p| &mut *p)) {
-            (Some(Entry::Occupied(val1)), Some(Entry::Occupied(val2))) => (val1, val2),
+            (
+                Some(&mut Entry::Occupied(ref mut val1)),
+                Some(&mut Entry::Occupied(ref mut val2)),
+            ) => (val1, val2),
             _ => unreachable!(),
         }
     }
