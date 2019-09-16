@@ -673,9 +673,8 @@ impl<T> Slab<T> {
     /// If a given key is not associated with a value, then `None` is
     /// returned.
     ///
-    /// This method can be used to get two mutable references out of one slab,
-    /// so that you can manipulate both of them at the same time, eg. swap
-    /// them.
+    /// This function can be used to get two mutable references out of one slab,
+    /// so that you can manipulate both of them at the same time, eg. swap them.
     ///
     /// # Examples
     ///
@@ -762,12 +761,7 @@ impl<T> Slab<T> {
     /// Return two mutable references to the values associated with the two
     /// given keys simultaneously without performing bounds checking.
     ///
-    /// If a given key is not associated with a value, then `None` is
-    /// returned.
-    ///
-    /// This method can be used to get two mutable references out of one slab,
-    /// so that you can manipulate both of them at the same time, eg. swap
-    /// them.
+    /// This function should be used with care.
     ///
     /// # Examples
     ///
