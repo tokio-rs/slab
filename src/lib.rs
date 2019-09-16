@@ -667,6 +667,48 @@ impl<T> Slab<T> {
         }
     }
 
+    /// Return two mutable references to the values associated with the two
+    /// given keys simultaneously.
+    ///
+    /// If a given key is not associated with a value, then `None` is
+    /// returned.
+    ///
+    /// This method can be used to get two mutable references out of one slab,
+    /// so that you can manipulate both of them at the same time, eg. swap
+    /// them.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    /// let key1 = slab.insert(1);
+    /// let key2 = slab.insert(2);
+    /// let (value1, value2) = slab.get2_mut(key1, key2);
+    /// let value1 = value1.unwrap();
+    /// let value2 = value2.unwrap();
+    /// std::mem::swap(value1, value2);
+    /// assert_eq!(slab[key1], 2);
+    /// assert_eq!(slab[key2], 1);
+    /// ```
+    pub fn get2_mut(&mut self, key1: usize, key2: usize) -> (Option<&mut T>, Option<&mut T>) {
+        let ptr1 = self.entries.get_mut(key1).map(|r| r as *mut Entry<T>);
+        let ptr2 = self.entries.get_mut(key2).map(|r| r as *mut Entry<T>);
+
+        // ptr1 and ptr2 point to different elements, and both lifetimes are
+        // bound by the slab itself, so this is safe.
+        unsafe {
+            match (ptr1.map(|p| &mut *p), ptr2.map(|p| &mut *p)) {
+                (Some(Entry::Occupied(val1)), Some(Entry::Occupied(val2))) => {
+                    (Some(val1), Some(val2))
+                }
+                (Some(Entry::Occupied(val1)), _) => (Some(val1), None),
+                (_, Some(Entry::Occupied(val2))) => (None, Some(val2)),
+                (_, _) => (None, None),
+            }
+        }
+    }
+
     /// Return a reference to the value associated with the given key without
     /// performing bounds checking.
     ///
@@ -712,6 +754,37 @@ impl<T> Slab<T> {
     pub unsafe fn get_unchecked_mut(&mut self, key: usize) -> &mut T {
         match *self.entries.get_unchecked_mut(key) {
             Entry::Occupied(ref mut val) => val,
+            _ => unreachable!(),
+        }
+    }
+
+    /// Return two mutable references to the values associated with the two
+    /// given keys simultaneously without performing bounds checking.
+    ///
+    /// If a given key is not associated with a value, then `None` is
+    /// returned.
+    ///
+    /// This method can be used to get two mutable references out of one slab,
+    /// so that you can manipulate both of them at the same time, eg. swap
+    /// them.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    /// let key1 = slab.insert(1);
+    /// let key2 = slab.insert(2);
+    /// let (value1, value2) = unsafe { slab.get2_unchecked_mut(key1, key2) };
+    /// std::mem::swap(value1, value2);
+    /// assert_eq!(slab[key1], 2);
+    /// assert_eq!(slab[key2], 1);
+    /// ```
+    pub unsafe fn get2_unchecked_mut(&mut self, key1: usize, key2: usize) -> (&mut T, &mut T) {
+        let ptr1 = self.entries.get_mut(key1).map(|r| r as *mut Entry<T>);
+        let ptr2 = self.entries.get_mut(key2).map(|r| r as *mut Entry<T>);
+        match (ptr1.map(|p| &mut *p), ptr2.map(|p| &mut *p)) {
+            (Some(Entry::Occupied(val1)), Some(Entry::Occupied(val2))) => (val1, val2),
             _ => unreachable!(),
         }
     }
