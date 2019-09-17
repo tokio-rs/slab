@@ -670,8 +670,8 @@ impl<T> Slab<T> {
     /// Return two mutable references to the values associated with the two
     /// given keys simultaneously.
     ///
-    /// If a given key is not associated with a value, then `None` is
-    /// returned.
+    /// If any one of the given keys is not associated with a value, then `None`
+    /// is returned.
     ///
     /// This function can be used to get two mutable references out of one slab,
     /// so that you can manipulate both of them at the same time, eg. swap them.
@@ -680,32 +680,37 @@ impl<T> Slab<T> {
     ///
     /// ```
     /// # use slab::*;
+    /// use std::mem;
+    ///
     /// let mut slab = Slab::new();
     /// let key1 = slab.insert(1);
     /// let key2 = slab.insert(2);
-    /// let (value1, value2) = slab.get2_mut(key1, key2);
-    /// let value1 = value1.unwrap();
-    /// let value2 = value2.unwrap();
-    /// std::mem::swap(value1, value2);
+    /// let (value1, value2) = slab.get2_mut(key1, key2).unwrap();
+    /// mem::swap(value1, value2);
     /// assert_eq!(slab[key1], 2);
     /// assert_eq!(slab[key2], 1);
     /// ```
-    pub fn get2_mut(&mut self, key1: usize, key2: usize) -> (Option<&mut T>, Option<&mut T>) {
-        let ptr1 = self.entries.get_mut(key1).map(|r| r as *mut Entry<T>);
-        let ptr2 = self.entries.get_mut(key2).map(|r| r as *mut Entry<T>);
+    pub fn get2_mut(&mut self, key1: usize, key2: usize) -> Option<(&mut T, &mut T)> {
+        assert!(key1 != key2);
 
-        // ptr1 and ptr2 point to different elements, and both lifetimes are
-        // bound by the slab itself, so this is safe.
-        unsafe {
-            match (ptr1.map(|p| &mut *p), ptr2.map(|p| &mut *p)) {
-                (
-                    Some(&mut Entry::Occupied(ref mut val1)),
-                    Some(&mut Entry::Occupied(ref mut val2)),
-                ) => (Some(val1), Some(val2)),
-                (Some(&mut Entry::Occupied(ref mut val1)), _) => (Some(val1), None),
-                (_, Some(&mut Entry::Occupied(ref mut val2))) => (None, Some(val2)),
-                (_, _) => (None, None),
-            }
+        let (entry1, entry2);
+
+        if key1 > key2 {
+            let (slice1, slice2) = self.entries.split_at_mut(key1);
+            entry1 = slice2.get_mut(0);
+            entry2 = slice1.get_mut(key2);
+        } else {
+            let (slice1, slice2) = self.entries.split_at_mut(key2);
+            entry1 = slice1.get_mut(key1);
+            entry2 = slice2.get_mut(0);
+        }
+
+        match (entry1, entry2) {
+            (
+                Some(&mut Entry::Occupied(ref mut val1)),
+                Some(&mut Entry::Occupied(ref mut val2)),
+            ) => Some((val1, val2)),
+            _ => None,
         }
     }
 
@@ -759,30 +764,37 @@ impl<T> Slab<T> {
     }
 
     /// Return two mutable references to the values associated with the two
-    /// given keys simultaneously without performing bounds checking.
+    /// given keys simultaneously without performing bounds checking and safety
+    /// condition checking.
     ///
     /// This function should be used with care.
+    ///
+    /// # Safety
+    ///
+    /// The condition `key1 != key2` must hold, otherwise it's undefined
+    /// behavior.
     ///
     /// # Examples
     ///
     /// ```
     /// # use slab::*;
+    /// use std::mem;
+    ///
     /// let mut slab = Slab::new();
     /// let key1 = slab.insert(1);
     /// let key2 = slab.insert(2);
     /// let (value1, value2) = unsafe { slab.get2_unchecked_mut(key1, key2) };
-    /// std::mem::swap(value1, value2);
+    /// mem::swap(value1, value2);
     /// assert_eq!(slab[key1], 2);
     /// assert_eq!(slab[key2], 1);
     /// ```
     pub unsafe fn get2_unchecked_mut(&mut self, key1: usize, key2: usize) -> (&mut T, &mut T) {
-        let ptr1 = self.entries.get_mut(key1).map(|r| r as *mut Entry<T>);
-        let ptr2 = self.entries.get_mut(key2).map(|r| r as *mut Entry<T>);
-        match (ptr1.map(|p| &mut *p), ptr2.map(|p| &mut *p)) {
-            (
-                Some(&mut Entry::Occupied(ref mut val1)),
-                Some(&mut Entry::Occupied(ref mut val2)),
-            ) => (val1, val2),
+        let ptr1 = self.entries.get_unchecked_mut(key1) as *mut Entry<T>;
+        let ptr2 = self.entries.get_unchecked_mut(key2) as *mut Entry<T>;
+        match (&mut *ptr1, &mut *ptr2) {
+            (&mut Entry::Occupied(ref mut val1), &mut Entry::Occupied(ref mut val2)) => {
+                (val1, val2)
+            }
             _ => unreachable!(),
         }
     }
