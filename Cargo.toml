@@ -20,3 +20,4 @@ repository = "https://github.com/carllerche/slab"
 readme = "README.md"
 keywords = ["slab", "allocator", "no_std"]
 categories = ["memory-management", "data-structures"]
+edition = "2018"
