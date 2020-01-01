@@ -20,3 +20,9 @@ repository = "https://github.com/carllerche/slab"
 readme = "README.md"
 keywords = ["slab", "allocator"]
 categories = ["memory-management", "data-structures"]
+
+[features]
+std = []
+
+[package.metadata.docs.rs]
+features = [ "std" ]

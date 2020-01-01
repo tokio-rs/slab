@@ -1,6 +1,7 @@
 #![doc(html_root_url = "https://docs.rs/slab/0.4.2")]
 #![deny(warnings, missing_docs, missing_debug_implementations)]
 #![cfg_attr(test, deny(warnings, unreachable_pub))]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 //! Pre-allocated storage for a uniform data type.
 //!
@@ -102,10 +103,12 @@
 //!
 //! [`Slab::with_capacity`]: struct.Slab.html#with_capacity
 
-use std::iter::{FromIterator, IntoIterator};
-use std::ops;
-use std::vec;
-use std::{fmt, mem};
+extern crate alloc;
+
+use alloc::vec;
+use core::iter::{FromIterator, IntoIterator};
+use core::ops;
+use core::{fmt, mem};
 
 /// Pre-allocated storage for a uniform data type
 ///
@@ -115,7 +118,7 @@ use std::{fmt, mem};
 #[derive(Clone)]
 pub struct Slab<T> {
     // Chunk of memory
-    entries: Vec<Entry<T>>,
+    entries: vec::Vec<Entry<T>>,
 
     // Number of Filled elements currently in the slab
     len: usize,
@@ -161,19 +164,19 @@ pub struct VacantEntry<'a, T: 'a> {
 
 /// A consuming iterator over the values stored in a `Slab`
 pub struct IntoIter<T> {
-    entries: std::vec::IntoIter<Entry<T>>,
+    entries: alloc::vec::IntoIter<Entry<T>>,
     curr: usize,
 }
 
 /// An iterator over the values stored in the `Slab`
 pub struct Iter<'a, T: 'a> {
-    entries: std::slice::Iter<'a, Entry<T>>,
+    entries: core::slice::Iter<'a, Entry<T>>,
     curr: usize,
 }
 
 /// A mutable iterator over the values stored in the `Slab`
 pub struct IterMut<'a, T: 'a> {
-    entries: std::slice::IterMut<'a, Entry<T>>,
+    entries: core::slice::IterMut<'a, Entry<T>>,
     curr: usize,
 }
 
@@ -231,7 +234,7 @@ impl<T> Slab<T> {
     /// ```
     pub fn with_capacity(capacity: usize) -> Slab<T> {
         Slab {
-            entries: Vec::with_capacity(capacity),
+            entries: vec::Vec::with_capacity(capacity),
             next: 0,
             len: 0,
         }
