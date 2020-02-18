@@ -103,9 +103,32 @@
 //! [`Slab::with_capacity`]: struct.Slab.html#with_capacity
 
 use std::iter::{FromIterator, IntoIterator};
+use std::num::NonZeroUsize;
 use std::ops;
 use std::vec;
 use std::{fmt, mem};
+
+/// Encode the specified index.
+///
+/// We encode the index as a `NonZeroUsize` (which also means that we need
+/// to avoid zero) because it gives entries which can be optimized for zero
+/// sized types like `()`.
+#[inline(always)]
+fn index_encode(index: usize) -> NonZeroUsize {
+    // TODO: Consider restructuring internal index plumbing to avoid this panic.
+    // Safety: This check is necessary to to make sure we're using
+    // `new_unchecked` safely.
+    assert!(index != std::usize::MAX, "index `{}` out of bounds", index);
+    unsafe { NonZeroUsize::new_unchecked(index + 1) }
+}
+
+/// Decode the specified index.
+///
+/// See [index_encode] for details on why we do this.
+#[inline(always)]
+fn index_decode(index: NonZeroUsize) -> usize {
+    index.get() - 1
+}
 
 /// Pre-allocated storage for a uniform data type
 ///
@@ -182,7 +205,7 @@ pub struct Drain<'a, T: 'a>(vec::Drain<'a, Entry<T>>);
 
 #[derive(Clone)]
 enum Entry<T> {
-    Vacant(usize),
+    Vacant(NonZeroUsize),
     Occupied(T),
 }
 
@@ -400,7 +423,7 @@ impl<T> Slab<T> {
                 break;
             }
             if let Entry::Vacant(ref mut next) = *entry {
-                *next = self.next;
+                *next = index_encode(self.next);
                 self.next = i;
                 remaining_vacant -= 1;
             }
@@ -831,7 +854,7 @@ impl<T> Slab<T> {
             self.next = key + 1;
         } else {
             self.next = match self.entries.get(key) {
-                Some(&Entry::Vacant(next)) => next,
+                Some(&Entry::Vacant(next)) => index_decode(next),
                 _ => unreachable!(),
             };
             self.entries[key] = Entry::Occupied(val);
@@ -861,7 +884,7 @@ impl<T> Slab<T> {
     pub fn remove(&mut self, key: usize) -> T {
         if let Some(entry) = self.entries.get_mut(key) {
             // Swap the entry at the provided value
-            let prev = mem::replace(entry, Entry::Vacant(self.next));
+            let prev = mem::replace(entry, Entry::Vacant(index_encode(self.next)));
 
             match prev {
                 Entry::Occupied(val) => {
@@ -1079,7 +1102,7 @@ impl<T> FromIterator<(usize, T)> for Slab<T> {
                     // add the entry to the start of the vacant list
                     let next = slab.next;
                     slab.next = slab.entries.len();
-                    slab.entries.push(Entry::Vacant(next));
+                    slab.entries.push(Entry::Vacant(index_encode(next)));
                 }
                 slab.entries.push(Entry::Occupied(value));
                 slab.len += 1;
@@ -1348,5 +1371,18 @@ impl<'a, T> DoubleEndedIterator for Drain<'a, T> {
         }
 
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Entry;
+
+    #[test]
+    fn test_zst_entry() {
+        assert_eq!(
+            std::mem::size_of::<usize>(),
+            std::mem::size_of::<Entry::<()>>()
+        );
     }
 }
