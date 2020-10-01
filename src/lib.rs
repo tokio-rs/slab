@@ -107,12 +107,18 @@ use std::ops;
 use std::vec;
 use std::{fmt, mem};
 
+#[cfg(feature = "serde")]
+extern crate serde;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// Pre-allocated storage for a uniform data type
 ///
 /// See the [module documentation] for more details.
 ///
 /// [module documentation]: index.html
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Slab<T> {
     // Chunk of memory
     entries: Vec<Entry<T>>,
@@ -181,6 +187,7 @@ pub struct IterMut<'a, T: 'a> {
 pub struct Drain<'a, T: 'a>(vec::Drain<'a, Entry<T>>);
 
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 enum Entry<T> {
     Vacant(usize),
     Occupied(T),
