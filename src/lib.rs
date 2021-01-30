@@ -387,7 +387,7 @@ impl<T> Slab<T> {
         }
 
         // Removing entries breaks the list of vacant entries,
-        // so it nust be repaired
+        // so it must be repaired
         if self.entries.len() != len_before {
             // Some vacant entries were removed, so the list now likely¹
             // either contains references to the removed entries, or has an
