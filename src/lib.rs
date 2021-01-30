@@ -1,6 +1,7 @@
 #![doc(html_root_url = "https://docs.rs/slab/0.4.2")]
 #![deny(warnings, missing_docs, missing_debug_implementations)]
 #![cfg_attr(test, deny(warnings, unreachable_pub))]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 //! Pre-allocated storage for a uniform data type.
 //!
@@ -102,10 +103,26 @@
 //!
 //! [`Slab::with_capacity`]: struct.Slab.html#with_capacity
 
-use std::iter::{FromIterator, IntoIterator};
-use std::ops;
-use std::vec;
-use std::{fmt, mem};
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
+#[cfg(not(feature = "std"))]
+use alloc::vec;
+
+#[cfg(not(feature = "std"))]
+use core::iter::FromIterator;
+
+#[cfg(not(feature = "std"))]
+use core::{fmt, mem, ops, slice};
+
+#[cfg(feature = "std")]
+use std::iter::FromIterator;
+
+#[cfg(feature = "std")]
+use std::{fmt, mem, ops, slice, vec};
 
 /// Pre-allocated storage for a uniform data type
 ///
@@ -161,19 +178,19 @@ pub struct VacantEntry<'a, T: 'a> {
 
 /// A consuming iterator over the values stored in a `Slab`
 pub struct IntoIter<T> {
-    entries: std::vec::IntoIter<Entry<T>>,
+    entries: vec::IntoIter<Entry<T>>,
     curr: usize,
 }
 
 /// An iterator over the values stored in the `Slab`
 pub struct Iter<'a, T: 'a> {
-    entries: std::slice::Iter<'a, Entry<T>>,
+    entries: slice::Iter<'a, Entry<T>>,
     curr: usize,
 }
 
 /// A mutable iterator over the values stored in the `Slab`
 pub struct IterMut<'a, T: 'a> {
-    entries: std::slice::IterMut<'a, Entry<T>>,
+    entries: slice::IterMut<'a, Entry<T>>,
     curr: usize,
 }
 
@@ -370,7 +387,7 @@ impl<T> Slab<T> {
         }
 
         // Removing entries breaks the list of vacant entries,
-        // so it nust be repaired
+        // so it must be repaired
         if self.entries.len() != len_before {
             // Some vacant entries were removed, so the list now likely¹
             // either contains references to the removed entries, or has an
@@ -667,6 +684,53 @@ impl<T> Slab<T> {
         }
     }
 
+    /// Return two mutable references to the values associated with the two
+    /// given keys simultaneously.
+    ///
+    /// If any one of the given keys is not associated with a value, then `None`
+    /// is returned.
+    ///
+    /// This function can be used to get two mutable references out of one slab,
+    /// so that you can manipulate both of them at the same time, eg. swap them.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// use std::mem;
+    ///
+    /// let mut slab = Slab::new();
+    /// let key1 = slab.insert(1);
+    /// let key2 = slab.insert(2);
+    /// let (value1, value2) = slab.get2_mut(key1, key2).unwrap();
+    /// mem::swap(value1, value2);
+    /// assert_eq!(slab[key1], 2);
+    /// assert_eq!(slab[key2], 1);
+    /// ```
+    pub fn get2_mut(&mut self, key1: usize, key2: usize) -> Option<(&mut T, &mut T)> {
+        assert!(key1 != key2);
+
+        let (entry1, entry2);
+
+        if key1 > key2 {
+            let (slice1, slice2) = self.entries.split_at_mut(key1);
+            entry1 = slice2.get_mut(0);
+            entry2 = slice1.get_mut(key2);
+        } else {
+            let (slice1, slice2) = self.entries.split_at_mut(key2);
+            entry1 = slice1.get_mut(key1);
+            entry2 = slice2.get_mut(0);
+        }
+
+        match (entry1, entry2) {
+            (
+                Some(&mut Entry::Occupied(ref mut val1)),
+                Some(&mut Entry::Occupied(ref mut val2)),
+            ) => Some((val1, val2)),
+            _ => None,
+        }
+    }
+
     /// Return a reference to the value associated with the given key without
     /// performing bounds checking.
     ///
@@ -713,6 +777,42 @@ impl<T> Slab<T> {
         match *self.entries.get_unchecked_mut(key) {
             Entry::Occupied(ref mut val) => val,
             _ => std::hint::unreachable_unchecked(),
+        }
+    }
+
+    /// Return two mutable references to the values associated with the two
+    /// given keys simultaneously without performing bounds checking and safety
+    /// condition checking.
+    ///
+    /// This function should be used with care.
+    ///
+    /// # Safety
+    ///
+    /// The condition `key1 != key2` must hold, otherwise it's undefined
+    /// behavior.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// use std::mem;
+    ///
+    /// let mut slab = Slab::new();
+    /// let key1 = slab.insert(1);
+    /// let key2 = slab.insert(2);
+    /// let (value1, value2) = unsafe { slab.get2_unchecked_mut(key1, key2) };
+    /// mem::swap(value1, value2);
+    /// assert_eq!(slab[key1], 2);
+    /// assert_eq!(slab[key2], 1);
+    /// ```
+    pub unsafe fn get2_unchecked_mut(&mut self, key1: usize, key2: usize) -> (&mut T, &mut T) {
+        let ptr1 = self.entries.get_unchecked_mut(key1) as *mut Entry<T>;
+        let ptr2 = self.entries.get_unchecked_mut(key2) as *mut Entry<T>;
+        match (&mut *ptr1, &mut *ptr2) {
+            (&mut Entry::Occupied(ref mut val1), &mut Entry::Occupied(ref mut val2)) => {
+                (val1, val2)
+            }
+            _ => unreachable!(),
         }
     }
 

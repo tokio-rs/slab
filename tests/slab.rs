@@ -187,7 +187,7 @@ fn reserve_exact_does_not_allocate_if_available() {
 
     assert!(slab.capacity() - slab.len() == 8);
 
-    slab.reserve(8);
+    slab.reserve_exact(8);
     assert_eq!(10, slab.capacity());
 }
 

@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+
+env:
+  RUSTFLAGS: -Dwarnings
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - nightly
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        run: rustup update ${{ matrix.rust }} && rustup default ${{ matrix.rust }}
+      - run: cargo build
+      - run: cargo test
+
+  minrust:
+    strategy:
+      matrix:
+        rust:
+          # This is the minimum supported Rust version of this crate.
+          - 1.27.0
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        run: rustup update ${{ matrix.rust }} && rustup default ${{ matrix.rust }}
+      - run: cargo build
+
+  no-std:
+    strategy:
+      matrix:
+        rust:
+          # This is the minimum supported Rust version for "no_std"
+          - 1.36.0
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        run: rustup update ${{ matrix.rust }} && rustup default ${{ matrix.rust }}
+      - run: rustup target add thumbv7m-none-eabi
+      - run: cargo build --no-default-features --target thumbv7m-none-eabi
+
+  rustfmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        run: rustup update stable && rustup default stable
+      - run: cargo fmt --all -- --check
