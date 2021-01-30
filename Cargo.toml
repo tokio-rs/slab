@@ -19,7 +19,7 @@ homepage = "https://github.com/carllerche/slab"
 repository = "https://github.com/carllerche/slab"
 readme = "README.md"
 keywords = ["slab", "allocator", "no_std"]
-categories = ["memory-management", "data-structures"]
+categories = ["memory-management", "data-structures", "no_std"]
 
 [features]
 std = []
