@@ -1,6 +1,7 @@
 #![doc(html_root_url = "https://docs.rs/slab/0.4.2")]
 #![deny(warnings, missing_docs, missing_debug_implementations)]
 #![cfg_attr(test, deny(warnings, unreachable_pub))]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 //! Pre-allocated storage for a uniform data type.
 //!
@@ -102,10 +103,26 @@
 //!
 //! [`Slab::with_capacity`]: struct.Slab.html#with_capacity
 
-use std::iter::{FromIterator, IntoIterator};
-use std::ops;
-use std::vec;
-use std::{fmt, mem};
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
+#[cfg(not(feature = "std"))]
+use alloc::vec;
+
+#[cfg(not(feature = "std"))]
+use core::iter::FromIterator;
+
+#[cfg(not(feature = "std"))]
+use core::{fmt, mem, ops, slice};
+
+#[cfg(feature = "std")]
+use std::iter::FromIterator;
+
+#[cfg(feature = "std")]
+use std::{fmt, mem, ops, slice, vec};
 
 /// Pre-allocated storage for a uniform data type
 ///
@@ -161,19 +178,19 @@ pub struct VacantEntry<'a, T: 'a> {
 
 /// A consuming iterator over the values stored in a `Slab`
 pub struct IntoIter<T> {
-    entries: std::vec::IntoIter<Entry<T>>,
+    entries: vec::IntoIter<Entry<T>>,
     curr: usize,
 }
 
 /// An iterator over the values stored in the `Slab`
 pub struct Iter<'a, T: 'a> {
-    entries: std::slice::Iter<'a, Entry<T>>,
+    entries: slice::Iter<'a, Entry<T>>,
     curr: usize,
 }
 
 /// A mutable iterator over the values stored in the `Slab`
 pub struct IterMut<'a, T: 'a> {
-    entries: std::slice::IterMut<'a, Entry<T>>,
+    entries: slice::IterMut<'a, Entry<T>>,
     curr: usize,
 }
 

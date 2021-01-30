@@ -10,6 +10,11 @@ matrix:
       script:
         - cargo build
 
+    # Minimum supported Rust version for "no_std"
+    - rust: 1.36.0
+      script:
+        - cargo build --no-default-features
+
 before_script:
   - if [ "$RUSTFMT" = 1 ]; then rustup component add rustfmt; fi
 
