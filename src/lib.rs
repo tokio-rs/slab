@@ -116,13 +116,13 @@ use alloc::vec;
 use core::iter::FromIterator;
 
 #[cfg(not(feature = "std"))]
-use core::{fmt, mem, ops, slice, hint};
+use core::{fmt, hint, mem, ops, slice};
 
 #[cfg(feature = "std")]
 use std::iter::FromIterator;
 
 #[cfg(feature = "std")]
-use std::{fmt, mem, ops, slice, vec, hint};
+use std::{fmt, hint, mem, ops, slice, vec};
 
 /// Pre-allocated storage for a uniform data type
 ///
