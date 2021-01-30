@@ -6,7 +6,7 @@ matrix:
       env: RUSTFMT=1
 
     # Minimum supported Rust version
-    - rust: 1.6.0
+    - rust: 1.27.0
       script:
         - cargo build
 
