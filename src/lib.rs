@@ -1,6 +1,6 @@
 #![doc(html_root_url = "https://docs.rs/slab/0.4.2")]
-#![deny(warnings, missing_docs, missing_debug_implementations)]
-#![cfg_attr(test, deny(warnings, unreachable_pub))]
+#![warn(missing_docs, missing_debug_implementations)]
+#![cfg_attr(test, warn(unreachable_pub))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 //! Pre-allocated storage for a uniform data type.
