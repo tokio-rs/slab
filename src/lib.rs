@@ -116,13 +116,13 @@ use alloc::vec;
 use core::iter::FromIterator;
 
 #[cfg(not(feature = "std"))]
-use core::{fmt, mem, ops, slice};
+use core::{fmt, mem, ops, slice, hint};
 
 #[cfg(feature = "std")]
 use std::iter::FromIterator;
 
 #[cfg(feature = "std")]
-use std::{fmt, mem, ops, slice, vec};
+use std::{fmt, mem, ops, slice, vec, hint};
 
 /// Pre-allocated storage for a uniform data type
 ///
@@ -750,7 +750,7 @@ impl<T> Slab<T> {
     pub unsafe fn get_unchecked(&self, key: usize) -> &T {
         match *self.entries.get_unchecked(key) {
             Entry::Occupied(ref val) => val,
-            _ => core::hint::unreachable_unchecked(),
+            _ => hint::unreachable_unchecked(),
         }
     }
 
@@ -776,7 +776,7 @@ impl<T> Slab<T> {
     pub unsafe fn get_unchecked_mut(&mut self, key: usize) -> &mut T {
         match *self.entries.get_unchecked_mut(key) {
             Entry::Occupied(ref mut val) => val,
-            _ => core::hint::unreachable_unchecked(),
+            _ => hint::unreachable_unchecked(),
         }
     }
 
