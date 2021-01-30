@@ -750,7 +750,7 @@ impl<T> Slab<T> {
     pub unsafe fn get_unchecked(&self, key: usize) -> &T {
         match *self.entries.get_unchecked(key) {
             Entry::Occupied(ref val) => val,
-            _ => std::hint::unreachable_unchecked(),
+            _ => core::hint::unreachable_unchecked(),
         }
     }
 
@@ -776,7 +776,7 @@ impl<T> Slab<T> {
     pub unsafe fn get_unchecked_mut(&mut self, key: usize) -> &mut T {
         match *self.entries.get_unchecked_mut(key) {
             Entry::Occupied(ref mut val) => val,
-            _ => std::hint::unreachable_unchecked(),
+            _ => core::hint::unreachable_unchecked(),
         }
     }
 
