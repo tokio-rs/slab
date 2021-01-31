@@ -732,9 +732,12 @@ impl<T> Slab<T> {
     }
 
     /// Return a reference to the value associated with the given key without
-    /// performing bounds checking.
+    /// without checking that there is an element associated with that key.
     ///
-    /// This function should be used with care.
+    /// # Safety
+    ///
+    /// * The key must be within bounds
+    /// * There must be a value present at the slot the key refers to
     ///
     /// # Examples
     ///
@@ -755,9 +758,12 @@ impl<T> Slab<T> {
     }
 
     /// Return a mutable reference to the value associated with the given key
-    /// without performing bounds checking.
+    /// without checking that there is an element associated with that key.
     ///
-    /// This function should be used with care.
+    /// # Safety
+    ///
+    /// * The key must be within bounds
+    /// * There must be a value present at the slot the key refers to
     ///
     /// # Examples
     ///
