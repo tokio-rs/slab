@@ -592,6 +592,8 @@ fn compact_handles_closure_panic() {
         slab.compact(|&mut v, from, to| {
             assert!(from > to);
             assert_eq!(from, v);
+            // TODO: once Rust 1.51 become stable, use `std::panic::panic_any` instead.
+            #[allow(unknown_lints, non_fmt_panic)]
             if v == 7 {
                 panic!(());
             }
