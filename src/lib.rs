@@ -736,6 +736,10 @@ impl<T> Slab<T> {
     ///
     /// This function should be used with care.
     ///
+    /// # Safety
+    ///
+    /// The key must be within bounds.
+    ///
     /// # Examples
     ///
     /// ```
@@ -758,6 +762,10 @@ impl<T> Slab<T> {
     /// without performing bounds checking.
     ///
     /// This function should be used with care.
+    ///
+    /// # Safety
+    ///
+    /// The key must be within bounds.
     ///
     /// # Examples
     ///
@@ -788,8 +796,8 @@ impl<T> Slab<T> {
     ///
     /// # Safety
     ///
-    /// The condition `key1 != key2` must hold, otherwise it's undefined
-    /// behavior.
+    /// - Both keys must be within bounds.
+    /// - The condition `key1 != key2` must hold.
     ///
     /// # Examples
     ///
