@@ -321,7 +321,7 @@ fn iter_mut() {
 
     for (i, (key, e)) in slab.iter_mut().enumerate() {
         assert_eq!(i, key);
-        *e = *e + 1;
+        *e += 1;
     }
 
     let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();
@@ -330,7 +330,7 @@ fn iter_mut() {
     slab.remove(2);
 
     for (_, e) in slab.iter_mut() {
-        *e = *e + 1;
+        *e += 1;
     }
 
     let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();

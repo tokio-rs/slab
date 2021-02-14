@@ -54,6 +54,14 @@ jobs:
       - run: rustup target add thumbv7m-none-eabi
       - run: cargo build --no-default-features --target thumbv7m-none-eabi
 
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        run: rustup update stable && rustup default stable
+      - run: cargo clippy --all-features
+
   rustfmt:
     runs-on: ubuntu-latest
     steps:
