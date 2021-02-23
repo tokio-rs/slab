@@ -1,4 +1,3 @@
-#![doc(html_root_url = "https://docs.rs/slab/0.4.2")]
 #![warn(missing_docs, missing_debug_implementations)]
 #![cfg_attr(test, warn(unreachable_pub))]
 #![cfg_attr(not(feature = "std"), no_std)]

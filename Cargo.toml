@@ -3,7 +3,6 @@
 name = "slab"
 # When releasing to crates.io:
 # - Update version number
-#   - lib.rs: html_root_url.
 #   - README.md
 # - Update CHANGELOG.md
 # - Update doc URL.
