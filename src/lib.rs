@@ -965,6 +965,7 @@ impl<T> Slab<T> {
     /// assert_eq!(slab.remove(hello), "hello");
     /// assert!(!slab.contains(hello));
     /// ```
+    #[track_caller]
     pub fn remove(&mut self, key: usize) -> T {
         if let Some(entry) = self.entries.get_mut(key) {
             // Swap the entry at the provided value
