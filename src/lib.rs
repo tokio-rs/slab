@@ -1207,12 +1207,10 @@ where
     T: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            fmt,
-            "Slab {{ len: {}, cap: {} }}",
-            self.len,
-            self.capacity()
-        )
+        fmt.debug_struct("Slab")
+            .field("len", &self.len)
+            .field("cap", &self.capacity())
+            .finish()
     }
 }
 
