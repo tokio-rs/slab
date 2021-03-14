@@ -945,7 +945,7 @@ impl<T> Slab<T> {
         }
     }
 
-    /// Tries to remove the value associated with the given key, 
+    /// Tries to remove the value associated with the given key,
     /// returning the value if the key existed.
     ///
     /// The key is then released and may be associated with future stored
@@ -971,14 +971,14 @@ impl<T> Slab<T> {
                 Entry::Occupied(val) => {
                     self.len -= 1;
                     self.next = key;
-                    return val.into()
-                },
+                    return val.into();
+                }
                 _ => {
                     // Woops, the entry is actually vacant, restore the state
                     *entry = prev;
                 }
             }
-        } 
+        }
         None
     }
 
