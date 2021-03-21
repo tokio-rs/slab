@@ -668,5 +668,5 @@ fn try_remove() {
 
     assert_eq!(slab.try_remove(key), Some(1));
     assert_eq!(slab.try_remove(key), None);
-    assert!(slab.get(key).is_none());
+    assert_eq!(slab.get(key), None);
 }
