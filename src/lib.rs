@@ -214,8 +214,12 @@ impl<T> Slab<T> {
     /// # use slab::*;
     /// let slab: Slab<i32> = Slab::new();
     /// ```
-    pub fn new() -> Slab<T> {
-        Slab::with_capacity(0)
+    pub const fn new() -> Slab<T> {
+        Slab {
+            entries: Vec::new(),
+            next: 0,
+            len: 0,
+        }
     }
 
     /// Construct a new, empty `Slab` with the specified capacity.
