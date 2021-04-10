@@ -104,6 +104,11 @@
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;
+#[cfg(feature = "std")]
+extern crate core;
+
+#[cfg(feature = "serde")]
+mod serde;
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
@@ -111,17 +116,12 @@ use alloc::vec::Vec;
 #[cfg(not(feature = "std"))]
 use alloc::vec;
 
-#[cfg(not(feature = "std"))]
 use core::iter::FromIterator;
 
-#[cfg(not(feature = "std"))]
 use core::{fmt, mem, ops, slice};
 
 #[cfg(feature = "std")]
-use std::iter::FromIterator;
-
-#[cfg(feature = "std")]
-use std::{fmt, mem, ops, slice, vec};
+use std::vec;
 
 /// Pre-allocated storage for a uniform data type
 ///

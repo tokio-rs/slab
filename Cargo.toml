@@ -23,3 +23,10 @@ categories = ["memory-management", "data-structures", "no_std"]
 [features]
 std = []
 default = ["std"]
+
+[dependencies]
+serde = { version = "1.0.95", optional = true, default-features = false, features = ["alloc"] }
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_test = "1"
