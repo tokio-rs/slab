@@ -9,6 +9,7 @@
 * Make all iterators reversible (#62).
 * Add `key_of()` method (#61)
 * Add `compact()` method (#60)
+* Add support for serde (#85)
 
 # 0.4.2 (January 11, 2019)
 
