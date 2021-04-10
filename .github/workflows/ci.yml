@@ -26,7 +26,7 @@ jobs:
         run: rustup update ${{ matrix.rust }} && rustup default ${{ matrix.rust }}
       - name: Install cargo-hack
         run: cargo install cargo-hack
-      - run: cargo hack build --feature-powerset --optional-deps
+      - run: cargo hack build --feature-powerset --optional-deps --no-dev-deps
       - run: cargo test --all-features
 
   minrust:
