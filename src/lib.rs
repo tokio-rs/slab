@@ -197,7 +197,10 @@ pub struct IterMut<'a, T: 'a> {
 }
 
 /// A draining iterator for `Slab`
-pub struct Drain<'a, T: 'a>(vec::Drain<'a, Entry<T>>);
+pub struct Drain<'a, T: 'a> {
+    inner: vec::Drain<'a, Entry<T>>,
+    len: usize,
+}
 
 #[derive(Clone)]
 enum Entry<T> {
@@ -1080,9 +1083,13 @@ impl<T> Slab<T> {
     /// assert!(slab.is_empty());
     /// ```
     pub fn drain(&mut self) -> Drain<T> {
+        let old_len = self.len;
         self.len = 0;
         self.next = 0;
-        Drain(self.entries.drain(..))
+        Drain {
+            inner: self.entries.drain(..),
+            len: old_len,
+        }
     }
 }
 
@@ -1466,8 +1473,9 @@ impl<'a, T> Iterator for Drain<'a, T> {
     type Item = T;
 
     fn next(&mut self) -> Option<T> {
-        while let Some(entry) = self.0.next() {
+        while let Some(entry) = self.inner.next() {
             if let Entry::Occupied(v) = entry {
+                self.len -= 1;
                 return Some(v);
             }
         }
@@ -1476,14 +1484,15 @@ impl<'a, T> Iterator for Drain<'a, T> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (0, Some(self.0.len()))
+        (self.len, Some(self.len))
     }
 }
 
 impl<'a, T> DoubleEndedIterator for Drain<'a, T> {
     fn next_back(&mut self) -> Option<T> {
-        while let Some(entry) = self.0.next_back() {
+        while let Some(entry) = self.inner.next_back() {
             if let Entry::Occupied(v) = entry {
+                self.len -= 1;
                 return Some(v);
             }
         }
@@ -1491,3 +1500,11 @@ impl<'a, T> DoubleEndedIterator for Drain<'a, T> {
         None
     }
 }
+
+impl<'a, T> ExactSizeIterator for Drain<'a, T> {
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+
+impl<'a, T> FusedIterator for Drain<'a, T> {}
