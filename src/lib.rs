@@ -741,6 +741,8 @@ impl<T> Slab<T> {
     /// Return a reference to the value associated with the given key without
     /// performing bounds checking.
     ///
+    /// For a safe alternative see [`get`](Slab::get).
+    ///
     /// This function should be used with care.
     ///
     /// # Safety
@@ -767,6 +769,8 @@ impl<T> Slab<T> {
 
     /// Return a mutable reference to the value associated with the given key
     /// without performing bounds checking.
+    ///
+    /// For a safe alternative see [`get_mut`](Slab::get_mut).
     ///
     /// This function should be used with care.
     ///
@@ -798,6 +802,8 @@ impl<T> Slab<T> {
     /// Return two mutable references to the values associated with the two
     /// given keys simultaneously without performing bounds checking and safety
     /// condition checking.
+    ///
+    /// For a safe alternative see [`get2_mut`](Slab::get2_mut).
     ///
     /// This function should be used with care.
     ///
