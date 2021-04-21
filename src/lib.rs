@@ -1345,6 +1345,7 @@ impl<T> Iterator for IntoIter<T> {
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 
@@ -1363,6 +1364,7 @@ impl<T> DoubleEndedIterator for IntoIter<T> {
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 }
@@ -1391,6 +1393,7 @@ impl<'a, T> Iterator for Iter<'a, T> {
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 
@@ -1409,6 +1412,7 @@ impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 }
@@ -1437,6 +1441,7 @@ impl<'a, T> Iterator for IterMut<'a, T> {
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 
@@ -1455,6 +1460,7 @@ impl<'a, T> DoubleEndedIterator for IterMut<'a, T> {
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 }
@@ -1480,6 +1486,7 @@ impl<'a, T> Iterator for Drain<'a, T> {
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 
@@ -1497,6 +1504,7 @@ impl<'a, T> DoubleEndedIterator for Drain<'a, T> {
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 }
