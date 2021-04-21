@@ -1,4 +1,4 @@
-# 0.4.3 (February 6, 2021)
+# 0.4.3 (April 20, 2021)
 
 * Add no_std support for Rust 1.36 and above (#71).
 * Add `get2_mut` and `get2_unchecked_mut` methods (#65).
