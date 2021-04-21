@@ -116,7 +116,7 @@ use alloc::vec::Vec;
 #[cfg(not(feature = "std"))]
 use alloc::vec;
 
-use core::iter::FromIterator;
+use core::iter::{FromIterator, FusedIterator};
 
 use core::{fmt, mem, ops, slice};
 
@@ -179,22 +179,28 @@ pub struct VacantEntry<'a, T: 'a> {
 pub struct IntoIter<T> {
     entries: vec::IntoIter<Entry<T>>,
     curr: usize,
+    len: usize,
 }
 
 /// An iterator over the values stored in the `Slab`
 pub struct Iter<'a, T: 'a> {
     entries: slice::Iter<'a, Entry<T>>,
     curr: usize,
+    len: usize,
 }
 
 /// A mutable iterator over the values stored in the `Slab`
 pub struct IterMut<'a, T: 'a> {
     entries: slice::IterMut<'a, Entry<T>>,
     curr: usize,
+    len: usize,
 }
 
 /// A draining iterator for `Slab`
-pub struct Drain<'a, T: 'a>(vec::Drain<'a, Entry<T>>);
+pub struct Drain<'a, T: 'a> {
+    inner: vec::Drain<'a, Entry<T>>,
+    len: usize,
+}
 
 #[derive(Clone)]
 enum Entry<T> {
@@ -602,6 +608,7 @@ impl<T> Slab<T> {
         Iter {
             entries: self.entries.iter(),
             curr: 0,
+            len: self.len,
         }
     }
 
@@ -634,6 +641,7 @@ impl<T> Slab<T> {
         IterMut {
             entries: self.entries.iter_mut(),
             curr: 0,
+            len: self.len,
         }
     }
 
@@ -1075,9 +1083,13 @@ impl<T> Slab<T> {
     /// assert!(slab.is_empty());
     /// ```
     pub fn drain(&mut self) -> Drain<T> {
+        let old_len = self.len;
         self.len = 0;
         self.next = 0;
-        Drain(self.entries.drain(..))
+        Drain {
+            inner: self.entries.drain(..),
+            len: old_len,
+        }
     }
 }
 
@@ -1109,6 +1121,7 @@ impl<T> IntoIterator for Slab<T> {
         IntoIter {
             entries: self.entries.into_iter(),
             curr: 0,
+            len: self.len,
         }
     }
 }
@@ -1221,7 +1234,7 @@ where
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Iter")
             .field("curr", &self.curr)
-            .field("remaining", &self.entries.len())
+            .field("remaining", &self.len)
             .finish()
     }
 }
@@ -1233,7 +1246,7 @@ where
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Iter")
             .field("curr", &self.curr)
-            .field("remaining", &self.entries.len())
+            .field("remaining", &self.len)
             .finish()
     }
 }
@@ -1245,7 +1258,7 @@ where
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("IterMut")
             .field("curr", &self.curr)
-            .field("remaining", &self.entries.len())
+            .field("remaining", &self.len)
             .finish()
     }
 }
@@ -1327,15 +1340,17 @@ impl<T> Iterator for IntoIter<T> {
             self.curr += 1;
 
             if let Entry::Occupied(v) = entry {
+                self.len -= 1;
                 return Some((curr, v));
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (0, Some(self.entries.len()))
+        (self.len, Some(self.len))
     }
 }
 
@@ -1344,13 +1359,23 @@ impl<T> DoubleEndedIterator for IntoIter<T> {
         while let Some(entry) = self.entries.next_back() {
             if let Entry::Occupied(v) = entry {
                 let key = self.curr + self.entries.len();
+                self.len -= 1;
                 return Some((key, v));
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 }
+
+impl<T> ExactSizeIterator for IntoIter<T> {
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+
+impl<T> FusedIterator for IntoIter<T> {}
 
 // ===== Iter =====
 
@@ -1363,15 +1388,17 @@ impl<'a, T> Iterator for Iter<'a, T> {
             self.curr += 1;
 
             if let Entry::Occupied(ref v) = *entry {
+                self.len -= 1;
                 return Some((curr, v));
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (0, Some(self.entries.len()))
+        (self.len, Some(self.len))
     }
 }
 
@@ -1380,13 +1407,23 @@ impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
         while let Some(entry) = self.entries.next_back() {
             if let Entry::Occupied(ref v) = *entry {
                 let key = self.curr + self.entries.len();
+                self.len -= 1;
                 return Some((key, v));
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 }
+
+impl<'a, T> ExactSizeIterator for Iter<'a, T> {
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+
+impl<'a, T> FusedIterator for Iter<'a, T> {}
 
 // ===== IterMut =====
 
@@ -1399,15 +1436,17 @@ impl<'a, T> Iterator for IterMut<'a, T> {
             self.curr += 1;
 
             if let Entry::Occupied(ref mut v) = *entry {
+                self.len -= 1;
                 return Some((curr, v));
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (0, Some(self.entries.len()))
+        (self.len, Some(self.len))
     }
 }
 
@@ -1416,13 +1455,23 @@ impl<'a, T> DoubleEndedIterator for IterMut<'a, T> {
         while let Some(entry) = self.entries.next_back() {
             if let Entry::Occupied(ref mut v) = *entry {
                 let key = self.curr + self.entries.len();
+                self.len -= 1;
                 return Some((key, v));
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 }
+
+impl<'a, T> ExactSizeIterator for IterMut<'a, T> {
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+
+impl<'a, T> FusedIterator for IterMut<'a, T> {}
 
 // ===== Drain =====
 
@@ -1430,28 +1479,40 @@ impl<'a, T> Iterator for Drain<'a, T> {
     type Item = T;
 
     fn next(&mut self) -> Option<T> {
-        while let Some(entry) = self.0.next() {
+        while let Some(entry) = self.inner.next() {
             if let Entry::Occupied(v) = entry {
+                self.len -= 1;
                 return Some(v);
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (0, Some(self.0.len()))
+        (self.len, Some(self.len))
     }
 }
 
 impl<'a, T> DoubleEndedIterator for Drain<'a, T> {
     fn next_back(&mut self) -> Option<T> {
-        while let Some(entry) = self.0.next_back() {
+        while let Some(entry) = self.inner.next_back() {
             if let Entry::Occupied(v) = entry {
+                self.len -= 1;
                 return Some(v);
             }
         }
 
+        debug_assert_eq!(self.len, 0);
         None
     }
 }
+
+impl<'a, T> ExactSizeIterator for Drain<'a, T> {
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+
+impl<'a, T> FusedIterator for Drain<'a, T> {}
