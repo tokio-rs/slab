@@ -1,8 +1,5 @@
 #![cfg(feature = "serde")]
-
-extern crate serde;
-extern crate serde_test;
-extern crate slab;
+#![warn(rust_2018_idioms)]
 
 use serde::{Deserialize, Serialize};
 use serde_test::{assert_tokens, Token};

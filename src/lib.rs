@@ -1,6 +1,10 @@
-#![warn(missing_docs, missing_debug_implementations)]
-#![cfg_attr(test, warn(unreachable_pub))]
 #![cfg_attr(not(feature = "std"), no_std)]
+#![warn(
+    missing_debug_implementations,
+    missing_docs,
+    rust_2018_idioms,
+    unreachable_pub
+)]
 
 //! Pre-allocated storage for a uniform data type.
 //!
@@ -105,23 +109,14 @@
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 #[cfg(feature = "std")]
-extern crate core;
+extern crate std as alloc;
 
 #[cfg(feature = "serde")]
 mod serde;
 
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
-
-#[cfg(not(feature = "std"))]
-use alloc::vec;
-
+use alloc::vec::{self, Vec};
 use core::iter::{FromIterator, FusedIterator};
-
 use core::{fmt, mem, ops, slice};
-
-#[cfg(feature = "std")]
-use std::vec;
 
 /// Pre-allocated storage for a uniform data type
 ///
@@ -170,7 +165,7 @@ impl<T> Default for Slab<T> {
 /// assert_eq!("hello", slab[hello].1);
 /// ```
 #[derive(Debug)]
-pub struct VacantEntry<'a, T: 'a> {
+pub struct VacantEntry<'a, T> {
     slab: &'a mut Slab<T>,
     key: usize,
 }
@@ -183,21 +178,21 @@ pub struct IntoIter<T> {
 }
 
 /// An iterator over the values stored in the `Slab`
-pub struct Iter<'a, T: 'a> {
+pub struct Iter<'a, T> {
     entries: slice::Iter<'a, Entry<T>>,
     curr: usize,
     len: usize,
 }
 
 /// A mutable iterator over the values stored in the `Slab`
-pub struct IterMut<'a, T: 'a> {
+pub struct IterMut<'a, T> {
     entries: slice::IterMut<'a, Entry<T>>,
     curr: usize,
     len: usize,
 }
 
 /// A draining iterator for `Slab`
-pub struct Drain<'a, T: 'a> {
+pub struct Drain<'a, T> {
     inner: vec::Drain<'a, Entry<T>>,
     len: usize,
 }
@@ -475,11 +470,11 @@ impl<T> Slab<T> {
         F: FnMut(&mut T, usize, usize) -> bool,
     {
         // If the closure unwinds, we need to restore a valid list of vacant entries
-        struct CleanupGuard<'a, T: 'a> {
+        struct CleanupGuard<'a, T> {
             slab: &'a mut Slab<T>,
             decrement: bool,
         }
-        impl<'a, T: 'a> Drop for CleanupGuard<'a, T> {
+        impl<T> Drop for CleanupGuard<'_, T> {
             fn drop(&mut self) {
                 if self.decrement {
                     // Value was popped and not pushed back on
@@ -604,7 +599,7 @@ impl<T> Slab<T> {
     /// assert_eq!(iterator.next(), Some((2, &2)));
     /// assert_eq!(iterator.next(), None);
     /// ```
-    pub fn iter(&self) -> Iter<T> {
+    pub fn iter(&self) -> Iter<'_, T> {
         Iter {
             entries: self.entries.iter(),
             curr: 0,
@@ -637,7 +632,7 @@ impl<T> Slab<T> {
     /// assert_eq!(slab[key1], 2);
     /// assert_eq!(slab[key2], 1);
     /// ```
-    pub fn iter_mut(&mut self) -> IterMut<T> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         IterMut {
             entries: self.entries.iter_mut(),
             curr: 0,
@@ -937,7 +932,7 @@ impl<T> Slab<T> {
     /// assert_eq!(hello, slab[hello].0);
     /// assert_eq!("hello", slab[hello].1);
     /// ```
-    pub fn vacant_entry(&mut self) -> VacantEntry<T> {
+    pub fn vacant_entry(&mut self) -> VacantEntry<'_, T> {
         VacantEntry {
             key: self.next,
             slab: self,
@@ -1088,7 +1083,7 @@ impl<T> Slab<T> {
     ///
     /// assert!(slab.is_empty());
     /// ```
-    pub fn drain(&mut self) -> Drain<T> {
+    pub fn drain(&mut self) -> Drain<'_, T> {
         let old_len = self.len;
         self.len = 0;
         self.next = 0;
@@ -1225,7 +1220,7 @@ impl<T> fmt::Debug for Slab<T>
 where
     T: fmt::Debug,
 {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Slab")
             .field("len", &self.len)
             .field("cap", &self.capacity())
@@ -1237,7 +1232,7 @@ impl<T> fmt::Debug for IntoIter<T>
 where
     T: fmt::Debug,
 {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Iter")
             .field("curr", &self.curr)
             .field("remaining", &self.len)
@@ -1245,11 +1240,11 @@ where
     }
 }
 
-impl<'a, T: 'a> fmt::Debug for Iter<'a, T>
+impl<T> fmt::Debug for Iter<'_, T>
 where
     T: fmt::Debug,
 {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Iter")
             .field("curr", &self.curr)
             .field("remaining", &self.len)
@@ -1257,11 +1252,11 @@ where
     }
 }
 
-impl<'a, T: 'a> fmt::Debug for IterMut<'a, T>
+impl<T> fmt::Debug for IterMut<'_, T>
 where
     T: fmt::Debug,
 {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("IterMut")
             .field("curr", &self.curr)
             .field("remaining", &self.len)
@@ -1269,8 +1264,8 @@ where
     }
 }
 
-impl<'a, T: 'a> fmt::Debug for Drain<'a, T> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+impl<T> fmt::Debug for Drain<'_, T> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Drain").finish()
     }
 }
@@ -1340,7 +1335,7 @@ impl<'a, T> VacantEntry<'a, T> {
 impl<T> Iterator for IntoIter<T> {
     type Item = (usize, T);
 
-    fn next(&mut self) -> Option<(usize, T)> {
+    fn next(&mut self) -> Option<Self::Item> {
         while let Some(entry) = self.entries.next() {
             let curr = self.curr;
             self.curr += 1;
@@ -1361,7 +1356,7 @@ impl<T> Iterator for IntoIter<T> {
 }
 
 impl<T> DoubleEndedIterator for IntoIter<T> {
-    fn next_back(&mut self) -> Option<(usize, T)> {
+    fn next_back(&mut self) -> Option<Self::Item> {
         while let Some(entry) = self.entries.next_back() {
             if let Entry::Occupied(v) = entry {
                 let key = self.curr + self.entries.len();
@@ -1388,7 +1383,7 @@ impl<T> FusedIterator for IntoIter<T> {}
 impl<'a, T> Iterator for Iter<'a, T> {
     type Item = (usize, &'a T);
 
-    fn next(&mut self) -> Option<(usize, &'a T)> {
+    fn next(&mut self) -> Option<Self::Item> {
         while let Some(entry) = self.entries.next() {
             let curr = self.curr;
             self.curr += 1;
@@ -1408,8 +1403,8 @@ impl<'a, T> Iterator for Iter<'a, T> {
     }
 }
 
-impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
-    fn next_back(&mut self) -> Option<(usize, &'a T)> {
+impl<T> DoubleEndedIterator for Iter<'_, T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
         while let Some(entry) = self.entries.next_back() {
             if let Entry::Occupied(ref v) = *entry {
                 let key = self.curr + self.entries.len();
@@ -1423,20 +1418,20 @@ impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
     }
 }
 
-impl<'a, T> ExactSizeIterator for Iter<'a, T> {
+impl<T> ExactSizeIterator for Iter<'_, T> {
     fn len(&self) -> usize {
         self.len
     }
 }
 
-impl<'a, T> FusedIterator for Iter<'a, T> {}
+impl<T> FusedIterator for Iter<'_, T> {}
 
 // ===== IterMut =====
 
 impl<'a, T> Iterator for IterMut<'a, T> {
     type Item = (usize, &'a mut T);
 
-    fn next(&mut self) -> Option<(usize, &'a mut T)> {
+    fn next(&mut self) -> Option<Self::Item> {
         while let Some(entry) = self.entries.next() {
             let curr = self.curr;
             self.curr += 1;
@@ -1456,8 +1451,8 @@ impl<'a, T> Iterator for IterMut<'a, T> {
     }
 }
 
-impl<'a, T> DoubleEndedIterator for IterMut<'a, T> {
-    fn next_back(&mut self) -> Option<(usize, &'a mut T)> {
+impl<T> DoubleEndedIterator for IterMut<'_, T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
         while let Some(entry) = self.entries.next_back() {
             if let Entry::Occupied(ref mut v) = *entry {
                 let key = self.curr + self.entries.len();
@@ -1471,20 +1466,20 @@ impl<'a, T> DoubleEndedIterator for IterMut<'a, T> {
     }
 }
 
-impl<'a, T> ExactSizeIterator for IterMut<'a, T> {
+impl<T> ExactSizeIterator for IterMut<'_, T> {
     fn len(&self) -> usize {
         self.len
     }
 }
 
-impl<'a, T> FusedIterator for IterMut<'a, T> {}
+impl<T> FusedIterator for IterMut<'_, T> {}
 
 // ===== Drain =====
 
-impl<'a, T> Iterator for Drain<'a, T> {
+impl<T> Iterator for Drain<'_, T> {
     type Item = T;
 
-    fn next(&mut self) -> Option<T> {
+    fn next(&mut self) -> Option<Self::Item> {
         while let Some(entry) = self.inner.next() {
             if let Entry::Occupied(v) = entry {
                 self.len -= 1;
@@ -1501,8 +1496,8 @@ impl<'a, T> Iterator for Drain<'a, T> {
     }
 }
 
-impl<'a, T> DoubleEndedIterator for Drain<'a, T> {
-    fn next_back(&mut self) -> Option<T> {
+impl<T> DoubleEndedIterator for Drain<'_, T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
         while let Some(entry) = self.inner.next_back() {
             if let Entry::Occupied(v) = entry {
                 self.len -= 1;
@@ -1515,10 +1510,10 @@ impl<'a, T> DoubleEndedIterator for Drain<'a, T> {
     }
 }
 
-impl<'a, T> ExactSizeIterator for Drain<'a, T> {
+impl<T> ExactSizeIterator for Drain<'_, T> {
     fn len(&self) -> usize {
         self.len
     }
 }
 
-impl<'a, T> FusedIterator for Drain<'a, T> {}
+impl<T> FusedIterator for Drain<'_, T> {}

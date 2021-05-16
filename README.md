@@ -24,8 +24,6 @@ slab = "0.4.3"
 Next, add this to your crate:
 
 ```rust
-extern crate slab;
-
 use slab::Slab;
 
 let mut slab = Slab::new();
