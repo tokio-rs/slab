@@ -116,7 +116,7 @@ use alloc::vec::Vec;
 #[cfg(not(feature = "std"))]
 use alloc::vec;
 
-use core::iter::{FromIterator, FusedIterator};
+use core::iter::{self, FromIterator, FusedIterator};
 
 use core::{fmt, mem, ops, slice};
 
@@ -177,22 +177,19 @@ pub struct VacantEntry<'a, T: 'a> {
 
 /// A consuming iterator over the values stored in a `Slab`
 pub struct IntoIter<T> {
-    entries: vec::IntoIter<Entry<T>>,
-    curr: usize,
+    entries: iter::Enumerate<vec::IntoIter<Entry<T>>>,
     len: usize,
 }
 
 /// An iterator over the values stored in the `Slab`
 pub struct Iter<'a, T: 'a> {
-    entries: slice::Iter<'a, Entry<T>>,
-    curr: usize,
+    entries: iter::Enumerate<slice::Iter<'a, Entry<T>>>,
     len: usize,
 }
 
 /// A mutable iterator over the values stored in the `Slab`
 pub struct IterMut<'a, T: 'a> {
-    entries: slice::IterMut<'a, Entry<T>>,
-    curr: usize,
+    entries: iter::Enumerate<slice::IterMut<'a, Entry<T>>>,
     len: usize,
 }
 
@@ -606,8 +603,7 @@ impl<T> Slab<T> {
     /// ```
     pub fn iter(&self) -> Iter<T> {
         Iter {
-            entries: self.entries.iter(),
-            curr: 0,
+            entries: self.entries.iter().enumerate(),
             len: self.len,
         }
     }
@@ -639,8 +635,7 @@ impl<T> Slab<T> {
     /// ```
     pub fn iter_mut(&mut self) -> IterMut<T> {
         IterMut {
-            entries: self.entries.iter_mut(),
-            curr: 0,
+            entries: self.entries.iter_mut().enumerate(),
             len: self.len,
         }
     }
@@ -1125,8 +1120,7 @@ impl<T> IntoIterator for Slab<T> {
 
     fn into_iter(self) -> IntoIter<T> {
         IntoIter {
-            entries: self.entries.into_iter(),
-            curr: 0,
+            entries: self.entries.into_iter().enumerate(),
             len: self.len,
         }
     }
@@ -1239,7 +1233,6 @@ where
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Iter")
-            .field("curr", &self.curr)
             .field("remaining", &self.len)
             .finish()
     }
@@ -1251,7 +1244,6 @@ where
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Iter")
-            .field("curr", &self.curr)
             .field("remaining", &self.len)
             .finish()
     }
@@ -1263,7 +1255,6 @@ where
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("IterMut")
-            .field("curr", &self.curr)
             .field("remaining", &self.len)
             .finish()
     }
@@ -1341,13 +1332,10 @@ impl<T> Iterator for IntoIter<T> {
     type Item = (usize, T);
 
     fn next(&mut self) -> Option<(usize, T)> {
-        while let Some(entry) = self.entries.next() {
-            let curr = self.curr;
-            self.curr += 1;
-
+        while let Some((key, entry)) = self.entries.next() {
             if let Entry::Occupied(v) = entry {
                 self.len -= 1;
-                return Some((curr, v));
+                return Some((key, v));
             }
         }
 
@@ -1362,9 +1350,8 @@ impl<T> Iterator for IntoIter<T> {
 
 impl<T> DoubleEndedIterator for IntoIter<T> {
     fn next_back(&mut self) -> Option<(usize, T)> {
-        while let Some(entry) = self.entries.next_back() {
+        while let Some((key, entry)) = self.entries.next_back() {
             if let Entry::Occupied(v) = entry {
-                let key = self.curr + self.entries.len();
                 self.len -= 1;
                 return Some((key, v));
             }
@@ -1389,13 +1376,10 @@ impl<'a, T> Iterator for Iter<'a, T> {
     type Item = (usize, &'a T);
 
     fn next(&mut self) -> Option<(usize, &'a T)> {
-        while let Some(entry) = self.entries.next() {
-            let curr = self.curr;
-            self.curr += 1;
-
+        while let Some((key, entry)) = self.entries.next() {
             if let Entry::Occupied(ref v) = *entry {
                 self.len -= 1;
-                return Some((curr, v));
+                return Some((key, v));
             }
         }
 
@@ -1410,9 +1394,8 @@ impl<'a, T> Iterator for Iter<'a, T> {
 
 impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
     fn next_back(&mut self) -> Option<(usize, &'a T)> {
-        while let Some(entry) = self.entries.next_back() {
+        while let Some((key, entry)) = self.entries.next_back() {
             if let Entry::Occupied(ref v) = *entry {
-                let key = self.curr + self.entries.len();
                 self.len -= 1;
                 return Some((key, v));
             }
@@ -1437,13 +1420,10 @@ impl<'a, T> Iterator for IterMut<'a, T> {
     type Item = (usize, &'a mut T);
 
     fn next(&mut self) -> Option<(usize, &'a mut T)> {
-        while let Some(entry) = self.entries.next() {
-            let curr = self.curr;
-            self.curr += 1;
-
+        while let Some((key, entry)) = self.entries.next() {
             if let Entry::Occupied(ref mut v) = *entry {
                 self.len -= 1;
-                return Some((curr, v));
+                return Some((key, v));
             }
         }
 
@@ -1458,9 +1438,8 @@ impl<'a, T> Iterator for IterMut<'a, T> {
 
 impl<'a, T> DoubleEndedIterator for IterMut<'a, T> {
     fn next_back(&mut self) -> Option<(usize, &'a mut T)> {
-        while let Some(entry) = self.entries.next_back() {
+        while let Some((key, entry)) = self.entries.next_back() {
             if let Entry::Occupied(ref mut v) = *entry {
-                let key = self.curr + self.entries.len();
                 self.len -= 1;
                 return Some((key, v));
             }
