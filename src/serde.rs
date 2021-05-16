@@ -1,10 +1,8 @@
-extern crate serde;
-
 use core::fmt;
 use core::marker::PhantomData;
 
-use self::serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
-use self::serde::ser::{Serialize, SerializeMap, Serializer};
+use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
+use serde::ser::{Serialize, SerializeMap, Serializer};
 
 use super::{Entry, Slab};
 
@@ -33,7 +31,7 @@ where
 {
     type Value = Slab<T>;
 
-    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn expecting(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "a map")
     }
 
