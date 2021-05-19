@@ -14,16 +14,11 @@ env:
 
 jobs:
   test:
-    strategy:
-      matrix:
-        rust:
-          - stable
-          - nightly
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Install Rust
-        run: rustup update ${{ matrix.rust }} && rustup default ${{ matrix.rust }}
+        run: rustup update stable
       - name: Install cargo-hack
         run: cargo install cargo-hack
       - run: cargo hack build --feature-powerset --optional-deps --no-dev-deps
@@ -61,13 +56,23 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Install Rust
-        run: rustup update stable && rustup default stable
+        run: rustup update stable
       - run: cargo clippy --all-features
 
-  rustfmt:
+  fmt:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Install Rust
-        run: rustup update stable && rustup default stable
+        run: rustup update stable
       - run: cargo fmt --all -- --check
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        run: rustup update nightly && rustup default nightly
+      - run: cargo doc --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: -Dwarnings
