@@ -11,10 +11,12 @@ struct SlabPartialEq<T>(Slab<T>);
 
 impl<T: PartialEq> PartialEq for SlabPartialEq<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.0
-            .iter()
-            .zip(other.0.iter())
-            .all(|(this, other)| this.0 == other.0 && this.1 == other.1)
+        self.0.len() == other.0.len()
+            && self
+                .0
+                .iter()
+                .zip(other.0.iter())
+                .all(|(this, other)| this.0 == other.0 && this.1 == other.1)
     }
 }
 
