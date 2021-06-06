@@ -51,7 +51,7 @@ where
                     slab.len += 1;
                 }
                 // if an element with this key already exists, replace it.
-                // This is consisent with HashMap and BtreeMap
+                // This is consistent with HashMap and BtreeMap
                 slab.entries[key] = Entry::Occupied(value);
             } else {
                 // insert holes as necessary
@@ -66,7 +66,7 @@ where
             }
         }
         if slab.len == slab.entries.len() {
-            // no vacant enries, so next might not have been updated
+            // no vacant entries, so next might not have been updated
             slab.next = slab.entries.len();
         } else if vacant_list_broken {
             slab.recreate_vacant_list();
