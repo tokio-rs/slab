@@ -306,7 +306,7 @@ impl<T> Slab<T> {
     /// more values.
     ///
     /// `reserve_exact` does nothing if the slab already has sufficient capacity
-    /// for `additional` more valus. If more capacity is required, a new segment
+    /// for `additional` more values. If more capacity is required, a new segment
     /// of memory will be allocated and all existing values will be copied into
     /// it.  As such, if the slab is already very large, a call to `reserve` can
     /// end up being expensive.
@@ -493,7 +493,7 @@ impl<T> Slab<T> {
         // While there are vacant entries
         while guard.slab.entries.len() > guard.slab.len {
             // Find a value that needs to be moved,
-            // by popping entries until we find an occopied one.
+            // by popping entries until we find an occupied one.
             // (entries cannot be empty because 0 is not greater than anything)
             if let Some(Entry::Occupied(mut value)) = guard.slab.entries.pop() {
                 // Found one, now find a vacant entry to move it to
@@ -854,7 +854,7 @@ impl<T> Slab<T> {
     /// assert_eq!(slab.key_of(value), key);
     /// ```
     ///
-    /// Values are not compared, so passing a reference to a different locaton
+    /// Values are not compared, so passing a reference to a different location
     /// will result in a panic:
     ///
     /// ```should_panic
@@ -1190,7 +1190,7 @@ impl<T> FromIterator<(usize, T)> for Slab<T> {
                     slab.len += 1;
                 }
                 // if an element with this key already exists, replace it.
-                // This is consisent with HashMap and BtreeMap
+                // This is consistent with HashMap and BtreeMap
                 slab.entries[key] = Entry::Occupied(value);
             } else {
                 // insert holes as necessary
@@ -1205,7 +1205,7 @@ impl<T> FromIterator<(usize, T)> for Slab<T> {
             }
         }
         if slab.len == slab.entries.len() {
-            // no vacant enries, so next might not have been updated
+            // no vacant entries, so next might not have been updated
             slab.next = slab.entries.len();
         } else if vacant_list_broken {
             slab.recreate_vacant_list();
