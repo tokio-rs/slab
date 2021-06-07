@@ -659,3 +659,14 @@ fn drain_rev() {
     let vals: Vec<u64> = slab.drain().rev().collect();
     assert_eq!(vals, (0..9).rev().collect::<Vec<u64>>());
 }
+
+#[test]
+fn try_remove() {
+    let mut slab = Slab::new();
+
+    let key = slab.insert(1);
+
+    assert_eq!(slab.try_remove(key), Some(1));
+    assert_eq!(slab.try_remove(key), None);
+    assert_eq!(slab.get(key), None);
+}

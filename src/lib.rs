@@ -953,6 +953,43 @@ impl<T> Slab<T> {
         }
     }
 
+    /// Tries to remove the value associated with the given key,
+    /// returning the value if the key existed.
+    ///
+    /// The key is then released and may be associated with future stored
+    /// values.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// let hello = slab.insert("hello");
+    ///
+    /// assert_eq!(slab.try_remove(hello), Some("hello"));
+    /// assert!(!slab.contains(hello));
+    /// ```
+    pub fn try_remove(&mut self, key: usize) -> Option<T> {
+        if let Some(entry) = self.entries.get_mut(key) {
+            // Swap the entry at the provided value
+            let prev = mem::replace(entry, Entry::Vacant(self.next));
+
+            match prev {
+                Entry::Occupied(val) => {
+                    self.len -= 1;
+                    self.next = key;
+                    return val.into();
+                }
+                _ => {
+                    // Woops, the entry is actually vacant, restore the state
+                    *entry = prev;
+                }
+            }
+        }
+        None
+    }
+
     /// Remove and return the value associated with the given key.
     ///
     /// The key is then released and may be associated with future stored
@@ -974,23 +1011,7 @@ impl<T> Slab<T> {
     /// assert!(!slab.contains(hello));
     /// ```
     pub fn remove(&mut self, key: usize) -> T {
-        if let Some(entry) = self.entries.get_mut(key) {
-            // Swap the entry at the provided value
-            let prev = mem::replace(entry, Entry::Vacant(self.next));
-
-            match prev {
-                Entry::Occupied(val) => {
-                    self.len -= 1;
-                    self.next = key;
-                    return val;
-                }
-                _ => {
-                    // Woops, the entry is actually vacant, restore the state
-                    *entry = prev;
-                }
-            }
-        }
-        panic!("invalid key");
+        self.try_remove(key).expect("invalid key")
     }
 
     /// Return `true` if a value is associated with the given key.
