@@ -1203,6 +1203,7 @@ impl<T> FromIterator<(usize, T)> for Slab<T> {
         let mut slab = Self::with_capacity(iterator.size_hint().0);
 
         let mut vacant_list_broken = false;
+        let mut first_vacant_index = None;
         for (key, value) in iterator {
             if key < slab.entries.len() {
                 // iterator is not sorted, might need to recreate vacant list
@@ -1214,6 +1215,9 @@ impl<T> FromIterator<(usize, T)> for Slab<T> {
                 // This is consistent with HashMap and BtreeMap
                 slab.entries[key] = Entry::Occupied(value);
             } else {
+                if first_vacant_index.is_none() && slab.entries.len() < key {
+                    first_vacant_index = Some(slab.entries.len());
+                }
                 // insert holes as necessary
                 while slab.entries.len() < key {
                     // add the entry to the start of the vacant list
@@ -1230,7 +1234,16 @@ impl<T> FromIterator<(usize, T)> for Slab<T> {
             slab.next = slab.entries.len();
         } else if vacant_list_broken {
             slab.recreate_vacant_list();
+        } else if let Some(first_vacant_index) = first_vacant_index {
+            let next = slab.entries.len();
+            match &mut slab.entries[first_vacant_index] {
+                Entry::Vacant(n) => *n = next,
+                _ => unreachable!(),
+            }
+        } else {
+            unreachable!()
         }
+
         slab
     }
 }

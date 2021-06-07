@@ -403,6 +403,36 @@ fn from_iterator_unordered() {
     assert_eq!(iter.next(), None);
 }
 
+// https://github.com/tokio-rs/slab/issues/100
+#[test]
+fn from_iterator_issue_100() {
+    let mut slab: slab::Slab<()> = vec![(1, ())].into_iter().collect();
+    assert_eq!(slab.len(), 1);
+    assert_eq!(slab.insert(()), 0);
+    assert_eq!(slab.insert(()), 2);
+    assert_eq!(slab.insert(()), 3);
+
+    let mut slab: slab::Slab<()> = vec![(1, ()), (2, ())].into_iter().collect();
+    assert_eq!(slab.len(), 2);
+    assert_eq!(slab.insert(()), 0);
+    assert_eq!(slab.insert(()), 3);
+    assert_eq!(slab.insert(()), 4);
+
+    let mut slab: slab::Slab<()> = vec![(1, ()), (3, ())].into_iter().collect();
+    assert_eq!(slab.len(), 2);
+    assert_eq!(slab.insert(()), 2);
+    assert_eq!(slab.insert(()), 0);
+    assert_eq!(slab.insert(()), 4);
+
+    let mut slab: slab::Slab<()> = vec![(0, ()), (2, ()), (3, ()), (5, ())]
+        .into_iter()
+        .collect();
+    assert_eq!(slab.len(), 4);
+    assert_eq!(slab.insert(()), 4);
+    assert_eq!(slab.insert(()), 1);
+    assert_eq!(slab.insert(()), 6);
+}
+
 #[test]
 fn clear() {
     let mut slab = Slab::new();
