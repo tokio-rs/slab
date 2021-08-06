@@ -17,6 +17,7 @@ repository = "https://github.com/tokio-rs/slab"
 readme = "README.md"
 keywords = ["slab", "allocator", "no_std"]
 categories = ["memory-management", "data-structures", "no-std"]
+exclude = ["/.*"]
 
 [features]
 std = []
