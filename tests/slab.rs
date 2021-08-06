@@ -443,9 +443,7 @@ fn clear() {
 
     // clear full
     slab.clear();
-
-    let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();
-    assert!(vals.is_empty());
+    assert!(slab.is_empty());
 
     assert_eq!(0, slab.len());
     assert_eq!(4, slab.capacity());
@@ -459,9 +457,7 @@ fn clear() {
 
     // clear half-filled
     slab.clear();
-
-    let vals: Vec<_> = slab.iter().map(|(_, r)| *r).collect();
-    assert!(vals.is_empty());
+    assert!(slab.is_empty());
 }
 
 #[test]
