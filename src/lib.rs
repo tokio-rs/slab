@@ -1365,7 +1365,7 @@ impl<T> Iterator for IntoIter<T> {
     type Item = (usize, T);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((key, entry)) = self.entries.next() {
+        for (key, entry) in &mut self.entries {
             if let Entry::Occupied(v) = entry {
                 self.len -= 1;
                 return Some((key, v));
@@ -1409,7 +1409,7 @@ impl<'a, T> Iterator for Iter<'a, T> {
     type Item = (usize, &'a T);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((key, entry)) = self.entries.next() {
+        for (key, entry) in &mut self.entries {
             if let Entry::Occupied(ref v) = *entry {
                 self.len -= 1;
                 return Some((key, v));
@@ -1453,7 +1453,7 @@ impl<'a, T> Iterator for IterMut<'a, T> {
     type Item = (usize, &'a mut T);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((key, entry)) = self.entries.next() {
+        for (key, entry) in &mut self.entries {
             if let Entry::Occupied(ref mut v) = *entry {
                 self.len -= 1;
                 return Some((key, v));
@@ -1497,7 +1497,7 @@ impl<T> Iterator for Drain<'_, T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(entry) = self.inner.next() {
+        for entry in &mut self.inner {
             if let Entry::Occupied(v) = entry {
                 self.len -= 1;
                 return Some(v);
