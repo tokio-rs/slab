@@ -18,7 +18,7 @@ To use `slab`, first add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-slab = "0.4.3"
+slab = "0.4"
 ```
 
 Next, add this to your crate:

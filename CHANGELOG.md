@@ -1,3 +1,10 @@
+# 0.4.4 (August 06, 2021)
+
+* Fix panic in `FromIterator` impl (#102)
+* Fix compatibility with older clippy versions (#104)
+* Add `try_remove` method (#89)
+* Implement `ExactSizeIterator` and `FusedIterator` for iterators (#92)
+
 # 0.4.3 (April 20, 2021)
 
 * Add no_std support for Rust 1.36 and above (#71).
