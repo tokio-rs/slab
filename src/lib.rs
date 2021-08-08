@@ -1269,7 +1269,7 @@ where
     T: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("Iter")
+        fmt.debug_struct("IntoIter")
             .field("remaining", &self.len)
             .finish()
     }
