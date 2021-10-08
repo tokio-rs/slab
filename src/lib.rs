@@ -186,6 +186,15 @@ pub struct Iter<'a, T> {
     len: usize,
 }
 
+impl<'a, T> Clone for Iter<'a, T> {
+    fn clone(&self) -> Self {
+        Self {
+            entries: self.entries.clone(),
+            len: self.len,
+        }
+    }
+}
+
 /// A mutable iterator over the values stored in the `Slab`
 pub struct IterMut<'a, T> {
     entries: iter::Enumerate<slice::IterMut<'a, Entry<T>>>,
