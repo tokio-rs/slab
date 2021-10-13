@@ -1,4 +1,4 @@
-# 0.4.5 (October 12, 2021)
+# 0.4.5 (October 13, 2021)
 
  * Add alternate debug output for listing items in the slab (#108)
  * Fix typo in debug output of IntoIter (#109)
