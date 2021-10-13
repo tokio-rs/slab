@@ -1,3 +1,9 @@
+# 0.4.5 (October 13, 2021)
+
+ * Add alternate debug output for listing items in the slab (#108)
+ * Fix typo in debug output of IntoIter (#109)
+ * Impl 'Clone' for 'Iter' (#110)
+
 # 0.4.4 (August 06, 2021)
 
 * Fix panic in `FromIterator` impl (#102)
