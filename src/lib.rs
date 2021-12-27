@@ -207,6 +207,13 @@ pub struct Drain<'a, T> {
     len: usize,
 }
 
+/// A filtered draining iterator for `Slab`
+pub struct DrainFilter<'a, T, F> {
+    inner: &'a mut Slab<T>,
+    f: F,
+    skip: usize,
+}
+
 #[derive(Clone)]
 enum Entry<T> {
     Vacant(usize),
@@ -1121,6 +1128,38 @@ impl<T> Slab<T> {
             len: old_len,
         }
     }
+
+    /// Returns a draining iterator that removes elements based on closure output.
+    ///
+    /// # Examples
+    /// ```
+    /// # use slab::*;
+    ///
+    /// let mut slab = Slab::new();
+    ///
+    /// let a = slab.insert(0);
+    /// let b = slab.insert(1);
+    /// let c = slab.insert(2);
+    /// let d = slab.insert(3);
+    ///
+    /// let drained: Vec<_> = slab.drain_filter(|x| x % 2 == 0).collect();
+    /// assert_eq!(vec![(a, 0), (c, 2)], drained);
+    ///
+    /// assert!(!slab.contains(a));
+    /// assert!(slab.contains(b));
+    /// assert!(!slab.contains(c));
+    /// assert!(slab.contains(d));
+    /// ```
+    pub fn drain_filter<F>(&mut self, f: F) -> DrainFilter<'_, T, F>
+    where
+        F: FnMut(&T) -> bool,
+    {
+        DrainFilter {
+            inner: self,
+            f,
+            skip: 0,
+        }
+    }
 }
 
 impl<T> ops::Index<usize> for Slab<T> {
@@ -1309,6 +1348,12 @@ where
 impl<T> fmt::Debug for Drain<'_, T> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Drain").finish()
+    }
+}
+
+impl<T, F> fmt::Debug for DrainFilter<'_, T, F> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("DrainFilter").finish()
     }
 }
 
@@ -1547,3 +1592,38 @@ impl<T> ExactSizeIterator for Drain<'_, T> {
 }
 
 impl<T> FusedIterator for Drain<'_, T> {}
+
+// ===== DrainFilter =====
+
+impl<T, F> Iterator for DrainFilter<'_, T, F>
+where
+    F: FnMut(&T) -> bool,
+{
+    type Item = (usize, T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        for (key, entry) in self.inner.entries.iter_mut().skip(self.skip).enumerate() {
+            if let Entry::Occupied(ref v) = *entry {
+                if (self.f)(v) {
+                    let entry = std::mem::replace(entry, Entry::Vacant(key));
+                    let v = if let Entry::Occupied(v) = entry {
+                        v
+                    } else {
+                        unreachable!()
+                    };
+                    self.inner.len -= 1;
+                    self.skip += key;
+                    return Some((self.skip, v));
+                }
+            }
+        }
+
+        None
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(self.inner.len()))
+    }
+}
+
+impl<T, F> FusedIterator for DrainFilter<'_, T, F> where F: FnMut(&T) -> bool {}
