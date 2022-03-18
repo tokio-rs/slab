@@ -917,11 +917,11 @@ impl<T> Slab<T> {
         key
     }
 
-    /// Return a key for a vacant entry.
+    /// Returns the key of the next vacant entry.
     ///
-    /// This function is useful when you need to get the vacant key which
-    /// will be used for next insertion.
-    /// Same as `slab.vacant_entry().key()` but doesn't require mutable access.
+    /// This function returns the key of the vacant entry which  will be used
+    /// for the next insertion. This is equivalent to
+    /// `slab.vacant_entry().key()`, but it doesn't require mutable access.
     ///
     /// # Examples
     ///
