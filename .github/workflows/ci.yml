@@ -53,6 +53,17 @@ jobs:
       - run: rustup target add thumbv7m-none-eabi
       - run: cargo build --no-default-features --target thumbv7m-none-eabi
 
+  miri:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        run: rustup toolchain install nightly --component miri && rustup default nightly
+      - run: cargo miri test --workspace --all-features
+        env:
+          MIRIFLAGS: -Zmiri-check-number-validity -Zmiri-symbolic-alignment-check -Zmiri-tag-raw-pointers -Zmiri-disable-isolation
+          RUSTFLAGS: ${{ env.RUSTFLAGS }} -Z randomize-layout
+
   clippy:
     runs-on: ubuntu-latest
     steps:
