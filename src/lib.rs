@@ -830,8 +830,8 @@ impl<T> Slab<T> {
     /// assert_eq!(slab[key2], 1);
     /// ```
     pub unsafe fn get2_unchecked_mut(&mut self, key1: usize, key2: usize) -> (&mut T, &mut T) {
-        let ptr1 = self.entries.get_unchecked_mut(key1) as *mut Entry<T>;
-        let ptr2 = self.entries.get_unchecked_mut(key2) as *mut Entry<T>;
+        let ptr1 = self.entries.as_mut_ptr().add(key1);
+        let ptr2 = self.entries.as_mut_ptr().add(key2);
         match (&mut *ptr1, &mut *ptr2) {
             (&mut Entry::Occupied(ref mut val1), &mut Entry::Occupied(ref mut val2)) => {
                 (val1, val2)
