@@ -18,7 +18,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install Rust
         run: rustup update stable
       - name: Install cargo-hack
@@ -34,7 +34,7 @@ jobs:
           - 1.31.0
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install Rust
         run: rustup update ${{ matrix.rust }} && rustup default ${{ matrix.rust }}
       - run: cargo build
@@ -47,16 +47,27 @@ jobs:
           - 1.36.0
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install Rust
         run: rustup update ${{ matrix.rust }} && rustup default ${{ matrix.rust }}
       - run: rustup target add thumbv7m-none-eabi
       - run: cargo build --no-default-features --target thumbv7m-none-eabi
 
+  miri:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        run: rustup toolchain install nightly --component miri && rustup default nightly
+      - run: cargo miri test --workspace --all-features
+        env:
+          MIRIFLAGS: -Zmiri-check-number-validity -Zmiri-symbolic-alignment-check -Zmiri-tag-raw-pointers -Zmiri-disable-isolation
+          RUSTFLAGS: ${{ env.RUSTFLAGS }} -Z randomize-layout
+
   clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install Rust
         run: rustup update stable
       - run: cargo clippy --all-features
@@ -64,7 +75,7 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install Rust
         run: rustup update stable
       - run: cargo fmt --all -- --check
@@ -72,7 +83,7 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - run: cargo doc --no-deps --all-features
