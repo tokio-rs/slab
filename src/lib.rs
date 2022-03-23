@@ -917,6 +917,30 @@ impl<T> Slab<T> {
         key
     }
 
+    /// Returns the key of the next vacant entry.
+    ///
+    /// This function returns the key of the vacant entry which  will be used
+    /// for the next insertion. This is equivalent to
+    /// `slab.vacant_entry().key()`, but it doesn't require mutable access.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    /// assert_eq!(slab.vacant_key(), 0);
+    ///
+    /// slab.insert(0);
+    /// assert_eq!(slab.vacant_key(), 1);
+    ///
+    /// slab.insert(1);
+    /// slab.remove(0);
+    /// assert_eq!(slab.vacant_key(), 0);
+    /// ```
+    pub fn vacant_key(&self) -> usize {
+        self.next
+    }
+
     /// Return a handle to a vacant entry allowing for further manipulation.
     ///
     /// This function is useful when creating values that must contain their
