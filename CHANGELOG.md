@@ -1,4 +1,4 @@
-# 0.4.6 (March 27, 2022)
+# 0.4.6 (April 2, 2022)
 
 * Add `Slab::vacant_key` (#114)
 * Fix stacked borrows violation in `Slab::get2_unchecked_mut` (#115)
