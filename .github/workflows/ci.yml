@@ -22,7 +22,7 @@ jobs:
       - name: Install Rust
         run: rustup update stable
       - name: Install cargo-hack
-        run: cargo install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
       - run: cargo hack build --feature-powerset --optional-deps --no-dev-deps
       - run: cargo test --all-features
 
