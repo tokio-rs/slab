@@ -4,7 +4,7 @@ fn main() {
         Err(e) => {
             // If we couldn't detect the compiler version and features, just
             // print a warning. This isn't a fatal error: we can still build
-            // Tokio, we just can't enable cfgs automatically.
+            // Slab, we just can't enable cfgs automatically.
             println!(
                 "cargo:warning=slab: failed to detect compiler features: {}",
                 e
@@ -17,5 +17,8 @@ fn main() {
     // for non-cargo build systems that don't run the build script.
     if !cfg.probe_rustc_version(1, 39) {
         println!("cargo:rustc-cfg=slab_no_const_vec_new");
+    }
+    if !cfg.probe_rustc_version(1, 46) {
+        println!("cargo:rustc-cfg=slab_no_track_caller");
     }
 }
