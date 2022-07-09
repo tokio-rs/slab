@@ -21,9 +21,13 @@ exclude = ["/.*"]
 std = []
 default = ["std"]
 
+[build-dependencies]
+autocfg = "1"
+
 [dependencies]
 serde = { version = "1.0.95", optional = true, default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
+rustversion = "1"
 serde = { version = "1", features = ["derive"] }
 serde_test = "1"

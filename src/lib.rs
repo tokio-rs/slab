@@ -219,14 +219,35 @@ impl<T> Slab<T> {
     /// The function does not allocate and the returned slab will have no
     /// capacity until `insert` is called or capacity is explicitly reserved.
     ///
+    /// This is `const fn` on Rust 1.39+.
+    ///
     /// # Examples
     ///
     /// ```
     /// # use slab::*;
     /// let slab: Slab<i32> = Slab::new();
     /// ```
-    pub fn new() -> Slab<T> {
-        Slab::with_capacity(0)
+    #[cfg(not(slab_no_const_vec_new))]
+    pub const fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+            next: 0,
+            len: 0,
+        }
+    }
+    /// Construct a new, empty `Slab`.
+    ///
+    /// The function does not allocate and the returned slab will have no
+    /// capacity until `insert` is called or capacity is explicitly reserved.
+    ///
+    /// This is `const fn` on Rust 1.39+.
+    #[cfg(slab_no_const_vec_new)]
+    pub fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+            next: 0,
+            len: 0,
+        }
     }
 
     /// Construct a new, empty `Slab` with the specified capacity.
