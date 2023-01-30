@@ -686,7 +686,7 @@ impl<T> Slab<T> {
     /// ```
     pub fn get(&self, key: usize) -> Option<&T> {
         match self.entries.get(key) {
-            Some(&Entry::Occupied(ref val)) => Some(val),
+            Some(Entry::Occupied(val)) => Some(val),
             _ => None,
         }
     }
@@ -1178,7 +1178,7 @@ impl<T> ops::Index<usize> for Slab<T> {
     #[cfg_attr(not(slab_no_track_caller), track_caller)]
     fn index(&self, key: usize) -> &T {
         match self.entries.get(key) {
-            Some(&Entry::Occupied(ref v)) => v,
+            Some(Entry::Occupied(v)) => v,
             _ => panic!("invalid key"),
         }
     }
