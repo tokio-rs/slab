@@ -121,6 +121,9 @@ extern crate std as alloc;
 #[cfg(feature = "serde")]
 mod serde;
 
+#[cfg(feature = "bincode")]
+mod bincode;
+
 mod builder;
 
 use alloc::vec::{self, Vec};
