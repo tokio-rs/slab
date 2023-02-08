@@ -26,8 +26,10 @@ autocfg = "1"
 
 [dependencies]
 serde = { version = "1.0.95", optional = true, default-features = false, features = ["alloc"] }
+bincode = { version = "2.0.0-rc", optional = true, default-features = false }
 
 [dev-dependencies]
 rustversion = "1"
 serde = { version = "1", features = ["derive"] }
+bincode = { version = "2.0.0-rc" }
 serde_test = "1"

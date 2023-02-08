@@ -1,24 +1,11 @@
 #![cfg(feature = "serde")]
 #![warn(rust_2018_idioms)]
 
-use serde::{Deserialize, Serialize};
+mod partial_eq;
+
+use partial_eq::SlabPartialEq;
 use serde_test::{assert_tokens, Token};
 use slab::Slab;
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(transparent)]
-struct SlabPartialEq<T>(Slab<T>);
-
-impl<T: PartialEq> PartialEq for SlabPartialEq<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.len() == other.0.len()
-            && self
-                .0
-                .iter()
-                .zip(other.0.iter())
-                .all(|(this, other)| this.0 == other.0 && this.1 == other.1)
-    }
-}
 
 #[test]
 fn test_serde_empty() {
