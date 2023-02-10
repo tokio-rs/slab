@@ -118,7 +118,7 @@ extern crate std as alloc;
 #[cfg(feature = "serde")]
 mod serde;
 
-pub(crate) mod builder;
+mod builder;
 
 use alloc::vec::{self, Vec};
 use core::iter::{self, FromIterator, FusedIterator};
