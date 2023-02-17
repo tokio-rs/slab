@@ -442,17 +442,21 @@ impl<T> Slab<T> {
         self.next = self.entries.len();
         // We can stop once we've found all vacant entries
         let mut remaining_vacant = self.entries.len() - self.len;
+        if remaining_vacant == 0 {
+            return;
+        }
+
         // Iterate in reverse order so that lower keys are at the start of
         // the vacant list. This way future shrinks are more likely to be
         // able to remove vacant entries.
         for (i, entry) in self.entries.iter_mut().enumerate().rev() {
-            if remaining_vacant == 0 {
-                break;
-            }
             if let Entry::Vacant(ref mut next) = *entry {
                 *next = self.next;
                 self.next = i;
                 remaining_vacant -= 1;
+                if remaining_vacant == 0 {
+                    break;
+                }
             }
         }
     }
@@ -1561,3 +1565,14 @@ impl<T> ExactSizeIterator for Drain<'_, T> {
 }
 
 impl<T> FusedIterator for Drain<'_, T> {}
+
+#[test]
+fn ad_hoc_test_rvl() {
+    let len = 100_000_000;
+    let mut slab: Slab<usize> = (0..len).into_iter().map(|i| (i, i)).collect();
+    slab.remove(0);
+    slab.remove(len - 1);
+    let now = std::time::Instant::now();
+    slab.shrink_to_fit();
+    panic!("{:?}", now.elapsed());
+}
