@@ -726,6 +726,10 @@ impl<T> Slab<T> {
     /// This function can be used to get two mutable references out of one slab,
     /// so that you can manipulate both of them at the same time, eg. swap them.
     ///
+    /// # Panics
+    ///
+    /// This function will panic if `key1` and `key2` are the same.
+    ///
     /// # Examples
     ///
     /// ```
