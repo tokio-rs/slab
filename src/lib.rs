@@ -141,12 +141,15 @@ pub struct Slab<T> {
     next: usize,
 }
 
-impl<T> Clone for Slab<T> where T: Clone {
+impl<T> Clone for Slab<T>
+where
+    T: Clone,
+{
     fn clone(&self) -> Self {
         Self {
             entries: self.entries.clone(),
             len: self.len,
-            next: self.next
+            next: self.next,
         }
     }
 
