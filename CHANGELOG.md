@@ -1,3 +1,7 @@
+# 0.4.9 (August 22, 2023)
+
+* Avoid reallocations in `Slab::clone_from` (#137)
+
 # 0.4.8 (January 20, 2023)
 
 * Fixed documentation about overflow (#124)
