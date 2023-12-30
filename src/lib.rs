@@ -969,6 +969,35 @@ impl<T> Slab<T> {
         key
     }
 
+    /// Insert a value from the closure with the key in the slab, returning key assigned to the value.
+    ///
+    /// The returned key can later be used to retrieve or remove the value using indexed
+    /// lookup and `remove`. Additional capacity is allocated if needed. See
+    /// [Capacity and reallocation](index.html#capacity-and-reallocation).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new storage in the vector exceeds `isize::MAX` bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::new();
+    /// let key = slab.insert_with(|k| k);
+    /// assert_eq!(slab[key], key);
+    /// ```
+    pub fn insert_with<F>(&mut self, f: F) -> usize
+    where
+        F: FnOnce(usize) -> T
+    {
+        let key = self.next;
+
+        self.insert_at(key, f(key));
+
+        key
+    }
+
     /// Returns the key of the next vacant entry.
     ///
     /// This function returns the key of the vacant entry which  will be used
