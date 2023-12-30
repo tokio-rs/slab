@@ -989,7 +989,7 @@ impl<T> Slab<T> {
     /// ```
     pub fn insert_with<F>(&mut self, f: F) -> usize
     where
-        F: FnOnce(usize) -> T
+        F: FnOnce(usize) -> T,
     {
         let key = self.next;
 
