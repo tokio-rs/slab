@@ -77,6 +77,14 @@ fn insert_with_vacant_entry() {
 }
 
 #[test]
+fn extend() {
+    let mut slab = Slab::with_capacity(5);
+    slab.extend(1..9);
+    assert_eq!(slab[5], 6);
+    assert_eq!(slab.len(), 8);
+}
+
+#[test]
 fn get_vacant_entry_without_using() {
     let mut slab = Slab::<usize>::with_capacity(1);
     let key = slab.vacant_entry().key();

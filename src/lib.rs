@@ -1200,6 +1200,14 @@ impl<T> Slab<T> {
     }
 }
 
+impl<T> Extend<T> for Slab<T> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        for value in iter.into_iter() {
+            self.insert(value);
+        }
+    }
+}
+
 impl<T> ops::Index<usize> for Slab<T> {
     type Output = T;
 
