@@ -969,6 +969,21 @@ impl<T> Slab<T> {
         key
     }
 
+    /// Insert values in the slab from an iterator.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab = Slab::with_capacity(5);
+    /// slab.extend(1..9);
+    /// assert_eq!(slab[5], 6);
+    /// assert_eq!(slab.len(), 8);
+    /// ```
+    pub fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) -> Vec<usize> {
+        iter.into_iter().map(|x| self.insert(x)).collect()
+    }
+
     /// Returns the key of the next vacant entry.
     ///
     /// This function returns the key of the vacant entry which  will be used
@@ -1196,14 +1211,6 @@ impl<T> Slab<T> {
         Drain {
             inner: self.entries.drain(..),
             len: old_len,
-        }
-    }
-}
-
-impl<T> Extend<T> for Slab<T> {
-    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
-        for value in iter.into_iter() {
-            self.insert(value);
         }
     }
 }
