@@ -1,4 +1,4 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
 #![warn(
     missing_debug_implementations,
     missing_docs,
@@ -112,6 +112,8 @@
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;
+#[cfg(feature = "std")]
+extern crate std;
 #[cfg(feature = "std")]
 extern crate std as alloc;
 
