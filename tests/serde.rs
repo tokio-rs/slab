@@ -32,7 +32,7 @@ fn test_serde_empty() {
 #[test]
 fn test_serde() {
     let vec = vec![(1, 2), (3, 4), (5, 6)];
-    let slab: Slab<_> = vec.iter().cloned().collect();
+    let slab: Slab<i32> = vec.iter().cloned().collect();
     assert_tokens(
         &SlabPartialEq(slab),
         &[

@@ -1,63 +1,86 @@
-use crate::{Entry, Slab};
+use crate::entries::{Entries, Entry};
+use crate::generic::GenericSlab;
+use crate::key::Key;
 
 // Building `Slab` from pairs (usize, T).
-pub(crate) struct Builder<T> {
-    slab: Slab<T>,
+pub(crate) struct Builder<T, TKey, TEntries> {
+    slab: GenericSlab<T, TKey, TEntries>,
     vacant_list_broken: bool,
     first_vacant_index: Option<usize>,
 }
 
-impl<T> Builder<T> {
-    pub(crate) fn with_capacity(capacity: usize) -> Self {
+impl<T, TKey, TEntries> Builder<T, TKey, TEntries>
+where
+    TKey: Key<T>,
+    TEntries: Entries<T, TKey> + Default,
+{
+    pub(crate) fn new() -> Self {
         Self {
-            slab: Slab::with_capacity(capacity),
+            slab: GenericSlab::default(),
             vacant_list_broken: false,
             first_vacant_index: None,
         }
     }
-    pub(crate) fn pair(&mut self, key: usize, value: T) {
+    pub(crate) fn pair(&mut self, key: TKey, value: T) {
+        let index = key.index();
         let slab = &mut self.slab;
-        if key < slab.entries.len() {
+
+        if index < slab.entries.as_ref().len() {
+            let entry = &mut slab.entries.as_mut()[index];
+
             // iterator is not sorted, might need to recreate vacant list
-            if let Entry::Vacant(_) = slab.entries[key] {
+            if let Entry::Vacant { .. } = &*entry {
                 self.vacant_list_broken = true;
                 slab.len += 1;
             }
+
             // if an element with this key already exists, replace it.
             // This is consistent with HashMap and BtreeMap
-            slab.entries[key] = Entry::Occupied(value);
+            *entry = Entry::Occupied {
+                value,
+                key_data: Default::default(),
+            };
         } else {
-            if self.first_vacant_index.is_none() && slab.entries.len() < key {
-                self.first_vacant_index = Some(slab.entries.len());
+            if self.first_vacant_index.is_none() && slab.entries.as_ref().len() < index {
+                self.first_vacant_index = Some(slab.entries.as_ref().len());
             }
+
             // insert holes as necessary
-            while slab.entries.len() < key {
+            while slab.entries.as_ref().len() < index {
                 // add the entry to the start of the vacant list
-                let next = slab.next;
-                slab.next = slab.entries.len();
-                slab.entries.push(Entry::Vacant(next));
+                let next = slab.first_vacant;
+                slab.first_vacant = slab.entries.as_ref().len();
+                slab.entries.push(Entry::Vacant {
+                    next,
+                    key_data: Default::default(),
+                });
             }
-            slab.entries.push(Entry::Occupied(value));
+            slab.entries.push(Entry::Occupied {
+                value,
+                key_data: Default::default(),
+            });
             slab.len += 1;
         }
     }
 
-    pub(crate) fn build(self) -> Slab<T> {
+    pub(crate) fn build(self) -> GenericSlab<T, TKey, TEntries> {
         let mut slab = self.slab;
-        if slab.len == slab.entries.len() {
+
+        if slab.len == slab.entries.as_ref().len() {
             // no vacant entries, so next might not have been updated
-            slab.next = slab.entries.len();
+            slab.first_vacant = slab.entries.as_ref().len();
         } else if self.vacant_list_broken {
             slab.recreate_vacant_list();
         } else if let Some(first_vacant_index) = self.first_vacant_index {
-            let next = slab.entries.len();
-            match &mut slab.entries[first_vacant_index] {
-                Entry::Vacant(n) => *n = next,
+            let next = slab.entries.as_ref().len();
+            match &mut slab.entries.as_mut()[first_vacant_index] {
+                Entry::Vacant { next: n, .. } => *n = next,
                 _ => unreachable!(),
             }
         } else {
             unreachable!()
         }
+
         slab
     }
 }

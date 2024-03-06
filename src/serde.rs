@@ -39,7 +39,7 @@ where
     where
         A: MapAccess<'de>,
     {
-        let mut builder = Builder::with_capacity(map.size_hint().unwrap_or(0));
+        let mut builder = Builder::new();
 
         while let Some((key, value)) = map.next_entry()? {
             builder.pair(key, value)

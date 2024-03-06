@@ -373,7 +373,7 @@ fn iter_mut_rev() {
 
 #[test]
 fn from_iterator_sorted() {
-    let mut slab = (0..5).map(|i| (i, i)).collect::<Slab<_>>();
+    let mut slab = (0..5).map(|i| (i, i)).collect::<Slab<usize>>();
     assert_eq!(slab.len(), 5);
     assert_eq!(slab[0], 0);
     assert_eq!(slab[2], 2);
@@ -387,7 +387,7 @@ fn from_iterator_new_in_order() {
     let mut slab = [(0, 'a'), (1, 'a'), (1, 'b'), (0, 'b'), (9, 'a'), (0, 'c')]
         .iter()
         .cloned()
-        .collect::<Slab<_>>();
+        .collect::<Slab<char>>();
     assert_eq!(slab.len(), 3);
     assert_eq!(slab[0], 'c');
     assert_eq!(slab[1], 'b');
@@ -703,12 +703,6 @@ fn try_remove() {
     assert_eq!(slab.try_remove(key), Some(1));
     assert_eq!(slab.try_remove(key), None);
     assert_eq!(slab.get(key), None);
-}
-
-#[rustversion::since(1.39)]
-#[test]
-fn const_new() {
-    static _SLAB: Slab<()> = Slab::new();
 }
 
 #[test]
