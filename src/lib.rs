@@ -81,6 +81,63 @@
 //! slab.insert("the slab is not at capacity yet");
 //! ```
 //!
+//! If you want to you can also use the [`GenericSlab`] to provide custom a
+//! implementation for the key and the entries collection.
+//!
+//! ```
+//! # use generic_slab::*;
+//! use arrayvec::ArrayVec;
+//!
+//! #[derive(Default)]
+//! struct MyEntries<T, TKey, const N: usize>(ArrayVec<Entry<T, TKey>, N>)
+//! where
+//!     TKey: Key<T>;
+//!
+//! impl<T, TKey, const N: usize> AsRef<[Entry<T, TKey>]> for MyEntries<T, TKey, N>
+//! where
+//!     TKey: Key<T>,
+//! {
+//!     fn as_ref(&self) -> &[Entry<T, TKey>] {
+//!         &*self.0
+//!     }
+//! }
+//!
+//! impl<T, TKey, const N: usize> AsMut<[Entry<T, TKey>]> for MyEntries<T, TKey, N>
+//! where
+//!     TKey: Key<T>,
+//! {
+//!     fn as_mut(&mut self) -> &mut [Entry<T, TKey>] {
+//!         &mut *self.0
+//!     }
+//! }
+//!
+//! impl<T, TKey, const N: usize> Entries<T, TKey> for MyEntries<T, TKey, N>
+//! where
+//!     TKey: Key<T>,
+//! {
+//!    fn capacity(&self) -> usize {
+//!        N
+//!    }
+//!
+//!    fn push(&mut self, entry: Entry<T, TKey>) {
+//!        self.0.push(entry);
+//!    }
+//!
+//!    fn pop(&mut self) -> Option<Entry<T, TKey>> {
+//!        self.0.pop()
+//!    }
+//!
+//!    fn clear(&mut self) {
+//!        self.0.clear();
+//!    }
+//! }
+//!
+//! type FixedSlab<T, const N: usize> = GenericSlab::<T, usize, MyEntries<T, usize, N>>;
+//!
+//! let mut slab = FixedSlab::<String, 1024>::new();
+//! let key = slab.insert("test".into());
+//! ```
+//!
 //! # Capacity and reallocation
 //!
 //! The capacity of a slab is the amount of space allocated for any future
@@ -134,9 +191,10 @@ mod range_iter;
 
 use alloc::vec::Vec;
 
-pub use crate::entries::Entry;
+pub use crate::entries::{Entries, Entry};
 pub use crate::generic::GenericSlab;
 pub use crate::handle::Handle;
+pub use crate::key::Key;
 
 use crate::generic::GenericVacantEntry;
 
