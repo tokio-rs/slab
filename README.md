@@ -7,8 +7,8 @@
 
 [crates-badge]: https://img.shields.io/crates/v/generic_slab
 [crates-url]: https://crates.io/crates/generic_slab
-[ci-badge]: https://img.shields.io/github/actions/workflow/status/tokio-rs/generic_slab/ci.yml?branch=master
-[ci-url]: https://github.com/tokio-rs/generic_slab/actions
+[ci-badge]: https://img.shields.io/github/actions/workflow/status/Bergmann89/generic_slab/ci.yml?branch=master
+[ci-url]: https://github.com/Bergmann89/generic_slab/actions
 
 [Documentation](https://docs.rs/generic_slab)
 
