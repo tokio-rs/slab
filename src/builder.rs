@@ -1,3 +1,5 @@
+use core::mem::replace;
+
 use crate::entries::{Entries, Entry};
 use crate::generic::GenericSlab;
 use crate::key::Key;
@@ -29,19 +31,32 @@ where
         let slab = &mut self.slab;
 
         if index < slab.entries.as_ref().len() {
-            let entry = &mut slab.entries.as_mut()[index];
-
-            // iterator is not sorted, might need to recreate vacant list
-            if let Entry::Vacant { .. } = &*entry {
-                self.vacant_list_broken = true;
-                slab.meta.len += 1;
+            match replace(&mut slab.entries.as_mut()[index], Entry::Unknown) {
+                Entry::Vacant { .. } => {
+                    self.vacant_list_broken = true;
+                    slab.meta.len += 1;
+                }
+                Entry::Occupied {
+                    #[cfg(feature = "range")]
+                    range,
+                    ..
+                } => {
+                    #[cfg(feature = "range")]
+                    slab.remove_occupied_index(index, range);
+                }
+                _ => unreachable!(),
             }
+
+            #[cfg(feature = "range")]
+            let range = slab.insert_occupied_index(index);
 
             // if an element with this key already exists, replace it.
             // This is consistent with HashMap and BtreeMap
-            *entry = Entry::Occupied {
+            slab.entries.as_mut()[index] = Entry::Occupied {
                 value,
-                key_data: Default::default(),
+                key_data: key.into_occupied_data(),
+                #[cfg(feature = "range")]
+                range,
             };
         } else {
             if self.first_vacant_index.is_none() && slab.entries.as_ref().len() < index {
@@ -58,9 +73,15 @@ where
                     key_data: Default::default(),
                 });
             }
+
+            #[cfg(feature = "range")]
+            let range = slab.insert_occupied_index(index);
+
             slab.entries.push(Entry::Occupied {
                 value,
-                key_data: Default::default(),
+                key_data: key.into_occupied_data(),
+                #[cfg(feature = "range")]
+                range,
             });
             slab.meta.len += 1;
         }

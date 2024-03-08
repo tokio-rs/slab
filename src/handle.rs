@@ -96,7 +96,7 @@ impl<T> Key<T> for Handle<T> {
         Self {
             id: cx.id,
             index,
-            count: data.copied().unwrap_or_default(),
+            count: data.map(Clone::clone).unwrap_or_default(),
             marker: PhantomData,
         }
     }
@@ -123,6 +123,11 @@ impl<T> Key<T> for Handle<T> {
         let _cx = cx;
 
         data
+    }
+
+    #[inline]
+    fn into_occupied_data(self) -> Self::OccupiedData {
+        self.count
     }
 }
 

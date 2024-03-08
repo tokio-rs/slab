@@ -227,7 +227,9 @@ where
         let (index, entry) = item;
 
         match entry {
-            Entry::Occupied { value, key_data } => {
+            Entry::Occupied {
+                value, key_data, ..
+            } => {
                 let key = TKey::new_occupied(&self.meta.borrow().key_context, index, &key_data);
 
                 Some((key, value))
@@ -249,7 +251,9 @@ where
         let (index, entry) = item;
 
         match entry {
-            Entry::Occupied { value, key_data } => {
+            Entry::Occupied {
+                value, key_data, ..
+            } => {
                 let key = TKey::new_occupied(&self.meta.borrow().key_context, index, key_data);
 
                 Some((key, value))
@@ -271,7 +275,9 @@ where
         let (index, entry) = item;
 
         match entry {
-            Entry::Occupied { value, key_data } => {
+            Entry::Occupied {
+                value, key_data, ..
+            } => {
                 let key = TKey::new_occupied(&self.meta.borrow().key_context, index, key_data);
 
                 Some((key, value))
@@ -308,7 +314,9 @@ where
         let (index, entry) = item;
 
         match replace(entry, Entry::Unknown) {
-            Entry::Occupied { value, key_data } => {
+            Entry::Occupied {
+                value, key_data, ..
+            } => {
                 let meta = self.meta.borrow_mut();
                 let key_data = TKey::convert_into_vacant(&meta.key_context, key_data);
 

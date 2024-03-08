@@ -112,6 +112,10 @@ where
 
         /// Key related data for this entry
         key_data: TKey::OccupiedData,
+
+        /// Indices of the range feature
+        #[cfg(feature = "range")]
+        range: RangeIndices,
     },
 
     /// Unknown state for this entry
@@ -128,13 +132,20 @@ where
     fn clone(&self) -> Self {
         match self {
             Entry::Unknown => unreachable!(),
-            Entry::Vacant { next, key_data } => Self::Vacant {
+            Entry::Vacant { next, key_data } => Entry::Vacant {
                 next: *next,
                 key_data: key_data.clone(),
             },
-            Entry::Occupied { value, key_data } => Self::Occupied {
+            Entry::Occupied {
+                value,
+                key_data,
+                #[cfg(feature = "range")]
+                range,
+            } => Entry::Occupied {
                 value: value.clone(),
                 key_data: key_data.clone(),
+                #[cfg(feature = "range")]
+                range: *range,
             },
         }
     }
@@ -149,17 +160,34 @@ where
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            Self::Unknown => write!(f, "Unknown"),
-            Self::Vacant { next, key_data } => f
+            Entry::Unknown => write!(f, "Unknown"),
+            Entry::Vacant { next, key_data } => f
                 .debug_struct("Vacant")
                 .field("next", next)
                 .field("key_data", key_data)
                 .finish(),
-            Self::Occupied { value, key_data } => f
-                .debug_struct("Occupied")
-                .field("value", value)
-                .field("key_data", key_data)
-                .finish(),
+            Entry::Occupied {
+                value,
+                key_data,
+                #[cfg(feature = "range")]
+                range,
+            } => {
+                let mut s = f.debug_struct("Occupied");
+                s.field("value", value);
+                s.field("key_data", key_data);
+                #[cfg(feature = "range")]
+                s.field("range", range);
+                s.finish()
+            }
         }
     }
+}
+
+/* RangeIndices */
+
+#[cfg(feature = "range")]
+#[derive(Debug, Clone, Copy)]
+pub struct RangeIndices {
+    pub(crate) prev: usize,
+    pub(crate) next: usize,
 }

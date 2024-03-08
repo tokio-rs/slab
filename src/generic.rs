@@ -9,6 +9,15 @@ use crate::entries::{DynamicEntries, Entries, Entry};
 use crate::iter::{DrainMapper, GenericIter, KeyMapper, KeyValueMapper, ValueMapper};
 use crate::key::Key;
 
+#[cfg(feature = "range")]
+use core::ops::{Bound, RangeBounds};
+
+#[cfg(feature = "range")]
+use crate::{
+    entries::RangeIndices,
+    range_iter::{EntriesMutRef, EntriesRef, GenericRangeIter},
+};
+
 /// Pre-allocated generic storage for a uniform data type
 ///
 /// See the [module documentation] for more details.
@@ -36,6 +45,14 @@ where
 
     // Index of the first vacant entry
     pub(crate) first_vacant: usize,
+
+    /// Index of the first occupied entry
+    #[cfg(feature = "range")]
+    pub(crate) first_occupied: usize,
+
+    /// Index of the last occupied entry
+    #[cfg(feature = "range")]
+    pub(crate) last_occupied: usize,
 }
 
 /// Represents a vacant entry in the [`GenericSlab`].
@@ -72,6 +89,15 @@ pub type ValuesMut<'a, T, TKey> = GenericIter<SliceIterMut<'a, Entry<T, TKey>>, 
 /// Iterator that emits the items stored in the slab by consuming the slab.
 pub type IntoValues<TEntries> = GenericIter<<TEntries as IntoIterator>::IntoIter, ValueMapper>;
 
+/// Iterator that emits references to the stored items in insertion order in the selected range.
+#[cfg(feature = "range")]
+pub type RangeIter<'a, T, TKey, TEntries> = GenericRangeIter<EntriesRef<'a, T, TKey, TEntries>>;
+
+/// Iterator that emits mutable references to the stored items in insertion order in the selected range.
+#[cfg(feature = "range")]
+pub type RangeIterMut<'a, T, TKey, TEntries> =
+    GenericRangeIter<EntriesMutRef<'a, T, TKey, TEntries>>;
+
 /// Iterator that emits the items stored in slab by draining the slab.
 pub type Drain<'a, T, TKey> =
     GenericIter<Enumerate<SliceIterMut<'a, Entry<T, TKey>>>, DrainMapper<&'a mut Meta<T, TKey>>>;
@@ -106,7 +132,7 @@ where
 {
     /// Construct a new, empty `Slab` using the provided `entries``.
     ///
-    /// Before the slab is created [`Entries::clear`] will be called.
+    /// Before the slab is created the passed `entries` will be cleared.
     ///
     /// # Examples
     ///
@@ -121,6 +147,10 @@ where
             len: 0,
             key_context: TKey::Context::default(),
             first_vacant: 0,
+            #[cfg(feature = "range")]
+            first_occupied: crate::INVALID_INDEX,
+            #[cfg(feature = "range")]
+            last_occupied: crate::INVALID_INDEX,
         };
 
         Self { meta, entries }
@@ -168,6 +198,12 @@ where
         self.entries.clear();
         self.meta.len = 0;
         self.meta.first_vacant = 0;
+
+        #[cfg(feature = "range")]
+        {
+            self.meta.first_occupied = crate::INVALID_INDEX;
+            self.meta.last_occupied = crate::INVALID_INDEX;
+        }
     }
 
     /// Return the number of stored values.
@@ -219,16 +255,9 @@ where
     /// assert_eq!(slab.get(key), Some(&"hello"));
     /// assert_eq!(slab.get(123), None);
     /// ```
+    #[inline]
     pub fn get(&self, key: TKey) -> Option<&T> {
-        let index = key.index(&self.meta.key_context);
-        match self.entries.as_ref().get(index) {
-            Some(Entry::Occupied { value, key_data })
-                if key.verify(&self.meta.key_context, key_data) =>
-            {
-                Some(value)
-            }
-            _ => None,
-        }
+        self.get_at(&key)
     }
 
     /// Return a mutable reference to the value associated with the given key.
@@ -248,16 +277,9 @@ where
     /// assert_eq!(slab[key], "world");
     /// assert_eq!(slab.get_mut(123), None);
     /// ```
+    #[inline]
     pub fn get_mut(&mut self, key: TKey) -> Option<&mut T> {
-        let index = key.index(&self.meta.key_context);
-        match self.entries.as_mut().get_mut(index) {
-            Some(Entry::Occupied { value, key_data })
-                if key.verify(&self.meta.key_context, key_data) =>
-            {
-                Some(value)
-            }
-            _ => None,
-        }
+        self.get_mut_at(&key)
     }
 
     /// Return two mutable references to the values associated with the two
@@ -308,10 +330,12 @@ where
                 Some(Entry::Occupied {
                     value: value1,
                     key_data: data1,
+                    ..
                 }),
                 Some(Entry::Occupied {
                     value: value2,
                     key_data: data2,
+                    ..
                 }),
             ) if key1.verify(&self.meta.key_context, data1)
                 && key2.verify(&self.meta.key_context, data2) =>
@@ -377,8 +401,9 @@ where
     ///
     /// assert_eq!(slab[key], 13);
     /// ```
-    pub unsafe fn get_unchecked_mut(&mut self, key: usize) -> &mut T {
-        match self.entries.as_mut().get_unchecked_mut(key) {
+    pub unsafe fn get_unchecked_mut(&mut self, key: TKey) -> &mut T {
+        let index = key.index(&self.meta.key_context);
+        match self.entries.as_mut().get_unchecked_mut(index) {
             Entry::Occupied { value, .. } => value,
             _ => unreachable!(),
         }
@@ -524,6 +549,8 @@ where
     /// vacant. As such, a slab with a capacity of 1 million but only one
     /// stored value must still iterate the million slots.
     ///
+    /// If you are interested in an efficient iterator, check [`Self::ordered_iter`].
+    ///
     /// # Examples
     ///
     /// ```
@@ -557,6 +584,8 @@ where
     /// vacant. As such, a slab with a capacity of 1 million but only one
     /// stored value must still iterate the million slots.
     ///
+    /// If you are interested in an efficient iterator, check [`Self::ordered_iter`].
+    ///
     /// # Examples
     ///
     /// ```
@@ -588,6 +617,8 @@ where
     /// Iterators must iterate over every slot in the slab even if it is
     /// vacant. As such, a slab with a capacity of 1 million but only one
     /// stored value must still iterate the million slots.
+    ///
+    /// If you are interested in an efficient iterator, check [`Self::ordered_iter`].
     ///
     /// # Examples
     ///
@@ -637,10 +668,172 @@ where
         GenericIter::new(self.meta.len, self.entries.as_mut().iter_mut(), ValueMapper)
     }
 
+    /// Return an iterator that emits references to the stored items in insertion order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use generic_slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// let key1 = slab.insert(0);
+    /// let key2 = slab.insert(1);
+    /// slab.remove(key1);
+    /// let key3 = slab.insert(2);
+    ///
+    /// // `ordered_iter`` returns items in insertion order
+    /// let mut iter = slab.ordered_iter();
+    ///
+    /// assert_eq!(iter.next(), Some((1, &1)));
+    /// assert_eq!(iter.next(), Some((0, &2)));
+    /// assert_eq!(iter.next(), None);
+    ///
+    /// // while `iter`` returns items in storage order
+    /// let mut iter = slab.iter();
+    ///
+    /// assert_eq!(iter.next(), Some((0, &2)));
+    /// assert_eq!(iter.next(), Some((1, &1)));
+    /// assert_eq!(iter.next(), None);
+    /// ```
+    #[cfg(feature = "range")]
+    pub fn ordered_iter(&self) -> RangeIter<'_, T, TKey, TEntries> {
+        GenericRangeIter::new(
+            Bound::Included(self.meta.first_occupied),
+            Bound::Included(self.meta.last_occupied),
+            EntriesRef::new(self),
+        )
+    }
+
+    /// Return an iterator that emits mutable references to the stored items in insertion order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use generic_slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// let key1 = slab.insert(0);
+    /// let key2 = slab.insert(1);
+    /// slab.remove(key1);
+    /// let key3 = slab.insert(2);
+    ///
+    /// // `ordered_iter`` returns items in insertion order
+    /// let mut iter = slab.ordered_iter_mut();
+    ///
+    /// assert_eq!(iter.next(), Some((1, &mut 1)));
+    /// assert_eq!(iter.next(), Some((0, &mut 2)));
+    /// assert_eq!(iter.next(), None);
+    ///
+    /// // while `iter`` returns items in storage order
+    /// let mut iter = slab.iter_mut();
+    ///
+    /// assert_eq!(iter.next(), Some((0, &mut 2)));
+    /// assert_eq!(iter.next(), Some((1, &mut 1)));
+    /// assert_eq!(iter.next(), None);
+    /// ```
+    #[cfg(feature = "range")]
+    pub fn ordered_iter_mut(&mut self) -> RangeIterMut<'_, T, TKey, TEntries> {
+        GenericRangeIter::new(
+            Bound::Included(self.meta.first_occupied),
+            Bound::Included(self.meta.last_occupied),
+            EntriesMutRef::new(self),
+        )
+    }
+
+    /// Return an iterator that emits references to the stored items in
+    /// insertion order in the passed range.
+    ///
+    /// Hint: If the keys that are used in the range are not valid, the iterator
+    /// will be empty!
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use generic_slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// let key0 = slab.insert(0);
+    /// let key1 = slab.insert(1);
+    /// let key2 = slab.insert(2);
+    /// let key3 = slab.insert(3);
+    /// let key4 = slab.insert(4);
+    /// let key5 = slab.insert(5);
+    /// let key6 = slab.insert(6);
+    ///
+    /// // simple range iterator
+    /// let mut iter = slab.range(key2..key5);
+    /// assert_eq!(iter.next(), Some((2, &2)));
+    /// assert_eq!(iter.next(), Some((3, &3)));
+    /// assert_eq!(iter.next(), Some((4, &4)));
+    /// assert_eq!(iter.next(), None);
+    ///
+    /// // a reverse range can be used to negate the set of returned items
+    /// let mut iter = slab.range(key5..key2);
+    /// assert_eq!(iter.next(), Some((5, &5)));
+    /// assert_eq!(iter.next(), Some((6, &6)));
+    /// assert_eq!(iter.next(), Some((0, &0)));
+    /// assert_eq!(iter.next(), Some((1, &1)));
+    /// assert_eq!(iter.next(), None);
+    /// ```
+    #[cfg(feature = "range")]
+    pub fn range<R>(&self, range: R) -> RangeIter<'_, T, TKey, TEntries>
+    where
+        R: RangeBounds<TKey>,
+    {
+        let (front, back) = self.index_range(range);
+
+        GenericRangeIter::new(front, back, EntriesRef::new(self))
+    }
+
+    /// Return an iterator that emits mutable references to the stored items in
+    /// insertion order in the passed range.
+    ///
+    /// Hint: If the keys that are used in the range are not valid, the iterator
+    /// will be empty!
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use generic_slab::*;
+    /// let mut slab = Slab::new();
+    ///
+    /// let key0 = slab.insert(0);
+    /// let key1 = slab.insert(1);
+    /// let key2 = slab.insert(2);
+    /// let key3 = slab.insert(3);
+    /// let key4 = slab.insert(4);
+    /// let key5 = slab.insert(5);
+    /// let key6 = slab.insert(6);
+    ///
+    /// // simple range iterator
+    /// let mut iter = slab.range_mut(key2..key5);
+    /// assert_eq!(iter.next(), Some((2, &mut 2)));
+    /// assert_eq!(iter.next(), Some((3, &mut 3)));
+    /// assert_eq!(iter.next(), Some((4, &mut 4)));
+    /// assert_eq!(iter.next(), None);
+    ///
+    /// // a reverse range can be used to negate the set of returned items
+    /// let mut iter = slab.range_mut(key5..key2);
+    /// assert_eq!(iter.next(), Some((5, &mut 5)));
+    /// assert_eq!(iter.next(), Some((6, &mut 6)));
+    /// assert_eq!(iter.next(), Some((0, &mut 0)));
+    /// assert_eq!(iter.next(), Some((1, &mut 1)));
+    /// assert_eq!(iter.next(), None);
+    /// ```
+    #[cfg(feature = "range")]
+    pub fn range_mut<R>(&mut self, range: R) -> RangeIterMut<'_, T, TKey, TEntries>
+    where
+        R: RangeBounds<TKey>,
+    {
+        let (front, back) = self.index_range(range);
+
+        GenericRangeIter::new(front, back, EntriesMutRef::new(self))
+    }
+
     /// Insert a value in the slab, returning key assigned to the value.
     ///
     /// The returned key can later be used to retrieve or remove the value using indexed
-    /// lookup and `remove`. Additional capacity is allocated if needed. See
+    /// slab and `remove`. Additional capacity is allocated if needed. See
     /// [Capacity and reallocation](index.html#capacity-and-reallocation).
     ///
     /// # Panics
@@ -735,7 +928,14 @@ where
     pub fn contains(&self, key: TKey) -> bool {
         let index = key.index(&self.meta.key_context);
 
-        matches!(self.entries.as_ref().get(index), Some(Entry::Occupied { key_data, .. }) if key.verify(&self.meta.key_context, key_data))
+        match self.entries.as_ref().get(index) {
+            Some(Entry::Occupied { key_data, .. })
+                if key.verify(&self.meta.key_context, key_data) =>
+            {
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Tries to remove the value associated with the given key,
@@ -759,11 +959,13 @@ where
         let index = key.index(&self.meta.key_context);
         let entry = self.entries.as_mut().get_mut(index);
 
-        if matches!(entry, Some(Entry::Occupied { key_data, .. }) if key.verify(&self.meta.key_context, key_data))
-        {
-            Some(self.remove_at(index))
-        } else {
-            None
+        match entry {
+            Some(Entry::Occupied { key_data, .. })
+                if key.verify(&self.meta.key_context, key_data) =>
+            {
+                Some(self.remove_at(index))
+            }
+            _ => None,
         }
     }
 
@@ -821,7 +1023,9 @@ where
     {
         for index in 0..self.entries.as_mut().len() {
             let keep = match &mut self.entries.as_mut()[index] {
-                Entry::Occupied { value, key_data } => f(
+                Entry::Occupied {
+                    value, key_data, ..
+                } => f(
                     TKey::new_occupied(&self.meta.key_context, index, key_data),
                     value,
                 ),
@@ -984,6 +1188,8 @@ where
             if let Some(Entry::Occupied {
                 mut value,
                 key_data,
+                #[cfg(feature = "range")]
+                range,
             }) = guard.slab.entries.pop()
             {
                 // Found one, now find a vacant entry to move it to
@@ -1008,7 +1214,12 @@ where
                     // Changing the key failed, so push the entry back on at its old index.
                     guard.decrement = false;
 
-                    guard.slab.entries.push(Entry::Occupied { value, key_data });
+                    guard.slab.entries.push(Entry::Occupied {
+                        value,
+                        key_data,
+                        #[cfg(feature = "range")]
+                        range,
+                    });
                     guard.slab.entries.shrink_to_fit();
 
                     // Guard drop handles cleanup
@@ -1025,7 +1236,14 @@ where
                 *entry = Entry::Occupied {
                     value,
                     key_data: TKey::convert_into_occupied(&guard.slab.meta.key_context, key_data),
+                    #[cfg(feature = "range")]
+                    range,
                 };
+
+                #[cfg(feature = "range")]
+                guard
+                    .slab
+                    .move_occupied_index(old_index, occupied_until, range);
 
                 occupied_until += 1;
             }
@@ -1092,14 +1310,41 @@ where
         }
     }
 
+    fn get_at(&self, key: &TKey) -> Option<&T> {
+        let index = key.index(&self.meta.key_context);
+        match self.entries.as_ref().get(index) {
+            Some(Entry::Occupied {
+                value, key_data, ..
+            }) if key.verify(&self.meta.key_context, key_data) => Some(value),
+            _ => None,
+        }
+    }
+
+    fn get_mut_at(&mut self, key: &TKey) -> Option<&mut T> {
+        let index = key.index(&self.meta.key_context);
+        match self.entries.as_mut().get_mut(index) {
+            Some(Entry::Occupied {
+                value, key_data, ..
+            }) if key.verify(&self.meta.key_context, key_data) => Some(value),
+            _ => None,
+        }
+    }
+
     fn insert_at(&mut self, index: usize, value: T) {
         self.meta.len += 1;
 
+        #[cfg(feature = "range")]
+        let range = self.insert_occupied_index(index);
+
         if index == self.entries.as_ref().len() {
-            self.entries.push(Entry::Occupied {
+            let entry = Entry::Occupied {
                 value,
                 key_data: Default::default(),
-            });
+                #[cfg(feature = "range")]
+                range,
+            };
+
+            self.entries.push(entry);
             self.meta.first_vacant = index + 1;
         } else {
             let entry = &mut self.entries.as_mut()[index];
@@ -1108,7 +1353,12 @@ where
                 Entry::Vacant { next, key_data } => {
                     let key_data = TKey::convert_into_occupied(&self.meta.key_context, key_data);
 
-                    *entry = Entry::Occupied { value, key_data };
+                    *entry = Entry::Occupied {
+                        value,
+                        key_data,
+                        #[cfg(feature = "range")]
+                        range,
+                    };
 
                     self.meta.first_vacant = next;
                 }
@@ -1120,11 +1370,19 @@ where
     fn remove_at(&mut self, index: usize) -> T {
         let entry = &mut self.entries.as_mut()[index];
         match replace(entry, Entry::Unknown) {
-            Entry::Occupied { value, key_data } => {
+            Entry::Occupied {
+                value,
+                key_data,
+                #[cfg(feature = "range")]
+                range,
+            } => {
                 *entry = Entry::Vacant {
                     next: self.meta.first_vacant,
                     key_data: TKey::convert_into_vacant(&self.meta.key_context, key_data),
                 };
+
+                #[cfg(feature = "range")]
+                self.remove_occupied_index(index, range);
 
                 self.meta.len -= 1;
                 self.meta.first_vacant = index;
@@ -1160,6 +1418,130 @@ where
                 }
             }
         }
+    }
+
+    #[cfg(feature = "range")]
+    pub(crate) fn insert_occupied_index(&mut self, index: usize) -> RangeIndices {
+        let mut prev = index;
+        let mut next = index;
+
+        if self.meta.last_occupied != crate::INVALID_INDEX {
+            prev = self.meta.last_occupied;
+
+            match &mut self.entries.as_mut()[prev] {
+                Entry::Occupied { range, .. } => {
+                    next = range.next;
+                    range.next = index;
+                }
+                _ => unreachable!(),
+            }
+
+            match &mut self.entries.as_mut()[next] {
+                Entry::Occupied { range, .. } => {
+                    range.prev = index;
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        self.meta.last_occupied = index;
+        if self.meta.first_occupied == crate::INVALID_INDEX {
+            self.meta.first_occupied = index;
+        }
+
+        RangeIndices { prev, next }
+    }
+
+    #[cfg(feature = "range")]
+    pub(crate) fn remove_occupied_index(&mut self, index: usize, range: RangeIndices) {
+        let RangeIndices { prev, next } = range;
+
+        if prev != index {
+            match &mut self.entries.as_mut()[prev] {
+                Entry::Occupied { range, .. } => range.next = next,
+                _ => unreachable!(),
+            }
+        }
+
+        if next != index {
+            match &mut self.entries.as_mut()[next] {
+                Entry::Occupied { range, .. } => range.prev = prev,
+                _ => unreachable!(),
+            }
+        }
+
+        if self.meta.first_occupied == index {
+            self.meta.first_occupied = if next == index {
+                crate::INVALID_INDEX
+            } else {
+                next
+            };
+        }
+
+        if self.meta.last_occupied == index {
+            self.meta.last_occupied = if prev == index {
+                crate::INVALID_INDEX
+            } else {
+                prev
+            };
+        }
+    }
+
+    #[cfg(feature = "range")]
+    fn move_occupied_index(&mut self, old_index: usize, new_index: usize, range: RangeIndices) {
+        if range.prev != old_index {
+            match &mut self.entries.as_mut()[range.prev] {
+                Entry::Occupied { range, .. } => {
+                    range.next = new_index;
+                }
+                _ => unimplemented!(),
+            }
+        }
+
+        if range.next != old_index {
+            match &mut self.entries.as_mut()[range.next] {
+                Entry::Occupied { range, .. } => {
+                    range.prev = new_index;
+                }
+                _ => unimplemented!(),
+            }
+        }
+
+        if self.meta.first_occupied == old_index {
+            self.meta.first_occupied = new_index;
+        }
+
+        if self.meta.last_occupied == old_index {
+            self.meta.last_occupied = new_index;
+        }
+    }
+
+    #[cfg(feature = "range")]
+    fn index_range<R>(&self, range: R) -> (Bound<usize>, Bound<usize>)
+    where
+        R: RangeBounds<TKey>,
+    {
+        let front = match range.start_bound() {
+            Bound::Included(key) if self.get_at(key).is_some() => {
+                Bound::Included(key.index(&self.meta.key_context))
+            }
+            Bound::Excluded(key) if self.get_at(key).is_some() => {
+                Bound::Excluded(key.index(&self.meta.key_context))
+            }
+            _ => Bound::Included(self.meta.first_occupied),
+        };
+
+        let back = match range.end_bound() {
+            Bound::Included(key) if self.get_at(key).is_some() => {
+                Bound::Included(key.index(&self.meta.key_context))
+            }
+            Bound::Excluded(key) if self.get_at(key).is_some() => {
+                Bound::Excluded(key.index(&self.meta.key_context))
+            }
+            _ => Bound::Included(self.meta.last_occupied),
+        };
+
+        (front, back)
     }
 }
 
@@ -1295,7 +1677,7 @@ where
             fmt.debug_struct("GenericSlab")
                 .field("len", &self.meta.len)
                 .field("cap", &self.capacity())
-                .finish_non_exhaustive()
+                .finish()
         }
     }
 }
@@ -1430,6 +1812,10 @@ where
             len: self.len,
             key_context: self.key_context.clone(),
             first_vacant: self.first_vacant,
+            #[cfg(feature = "range")]
+            first_occupied: self.first_occupied,
+            #[cfg(feature = "range")]
+            last_occupied: self.last_occupied,
         }
     }
 }
@@ -1464,6 +1850,6 @@ where
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.debug_struct("GenericVacantEntry")
             .field("index", &self.index)
-            .finish_non_exhaustive()
+            .finish()
     }
 }

@@ -129,6 +129,9 @@ mod handle;
 mod iter;
 mod key;
 
+#[cfg(feature = "range")]
+mod range_iter;
+
 use alloc::vec::Vec;
 
 pub use crate::entries::Entry;
@@ -199,3 +202,6 @@ pub type Iter<'a, T> = generic::Iter<'a, T, usize>;
 
 /// A mutable iterator over the values stored in the `Slab`
 pub type IterMut<'a, T> = generic::IterMut<'a, T, usize>;
+
+#[cfg(feature = "range")]
+pub(crate) const INVALID_INDEX: usize = core::usize::MAX;

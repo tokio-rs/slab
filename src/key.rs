@@ -31,6 +31,9 @@ pub trait Key<T> {
     ///
     /// This is mainly called when an item is inserted in an vacant entry.
     fn convert_into_occupied(cx: &Self::Context, data: Self::VacantData) -> Self::OccupiedData;
+
+    /// Convert a key into the data that is stored for occupied entries.
+    fn into_occupied_data(self) -> Self::OccupiedData;
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -84,5 +87,10 @@ impl<T> Key<T> for usize {
         let _cx = cx;
 
         data
+    }
+
+    #[inline]
+    fn into_occupied_data(self) -> Self::OccupiedData {
+        NoData
     }
 }
