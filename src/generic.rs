@@ -1,6 +1,6 @@
 use core::fmt::{Debug, Formatter, Result as FmtResult};
 use core::iter::{Enumerate, FromIterator};
-use core::mem::{forget, replace, size_of};
+use core::mem::{forget, replace};
 use core::ops::{Index, IndexMut};
 use core::slice::{Iter as SliceIter, IterMut as SliceIterMut};
 
@@ -453,61 +453,6 @@ where
             }
             _ => unreachable!(),
         }
-    }
-
-    /// Get the key for an element in the slab.
-    ///
-    /// The reference must point to an element owned by the slab.
-    /// Otherwise this function will panic.
-    /// This is a constant-time operation because the key can be calculated
-    /// from the reference with pointer arithmetic.
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if the reference does not point to an element
-    /// of the slab.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use generic_slab::*;
-    ///
-    /// let mut slab = Slab::new();
-    /// let key = slab.insert(String::from("foo"));
-    /// let value = &slab[key];
-    /// assert_eq!(slab.key_of(value), key);
-    /// ```
-    ///
-    /// Values are not compared, so passing a reference to a different location
-    /// will result in a panic:
-    ///
-    /// ```should_panic
-    /// # use generic_slab::*;
-    ///
-    /// let mut slab = Slab::new();
-    /// let key = slab.insert(0);
-    /// let bad = &0;
-    /// slab.key_of(bad); // this will panic
-    /// unreachable!();
-    /// ```
-    pub fn key_of(&self, present_element: &T) -> TKey {
-        let element_ptr = present_element as *const T as usize;
-        let base_ptr = self.entries.as_ref().as_ptr() as usize;
-
-        // Use wrapping subtraction in case the reference is bad
-        let byte_offset = element_ptr.wrapping_sub(base_ptr);
-
-        // The division rounds away any offset of T inside Entry
-        // The size of Entry<T> is never zero even if T is due to Vacant(usize)
-        let index = byte_offset / size_of::<Entry<T, TKey>>();
-
-        // Prevent returning unspecified (but out of bounds) values
-        if index >= self.entries.as_ref().len() {
-            panic!("The reference points to a value outside this slab");
-        }
-
-        // The reference cannot point to a vacant entry, because then it would not be valid
-        self.occupied_key_at(index)
     }
 
     /// Return an iterator over the slab.
