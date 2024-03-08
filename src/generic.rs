@@ -1,6 +1,5 @@
 use core::fmt::{Debug, Formatter, Result as FmtResult};
 use core::iter::{Enumerate, FromIterator};
-use core::marker::PhantomData;
 use core::mem::{forget, replace, size_of};
 use core::ops::{Index, IndexMut};
 use core::slice::{Iter as SliceIter, IterMut as SliceIterMut};
@@ -15,39 +14,54 @@ use crate::key::Key;
 /// See the [module documentation] for more details.
 ///
 /// [module documentation]: index.html
-pub struct GenericSlab<T, TKey, TEntries> {
+pub struct GenericSlab<T, TKey, TEntries>
+where
+    TKey: Key<T>,
+{
+    pub(crate) meta: Meta<T, TKey>,
+    pub(crate) entries: TEntries,
+}
+
+/// Helper type to store the meta information of a slab
+#[derive(Debug)]
+pub struct Meta<T, TKey>
+where
+    TKey: Key<T>,
+{
     // Number of elements currently stored in the slab
     pub(crate) len: usize,
 
-    // Chunk of memory
-    pub(crate) entries: TEntries,
+    // Context to store key related data in
+    pub(crate) key_context: TKey::Context,
 
     // Index of the first vacant entry
     pub(crate) first_vacant: usize,
-
-    key: PhantomData<TKey>,
-    value: PhantomData<T>,
 }
 
 /// Represents a vacant entry in the [`GenericSlab`].
-pub struct GenericVacantEntry<'a, T, TKey, TEntries> {
+pub struct GenericVacantEntry<'a, T, TKey, TEntries>
+where
+    TKey: Key<T>,
+{
     index: usize,
     slab: &'a mut GenericSlab<T, TKey, TEntries>,
 }
 
 /// Iterator that emits the key and the reference to the items stored in the slab.
-pub type Iter<'a, T, TKey> = GenericIter<Enumerate<SliceIter<'a, Entry<T, TKey>>>, KeyValueMapper>;
+pub type Iter<'a, T, TKey> =
+    GenericIter<Enumerate<SliceIter<'a, Entry<T, TKey>>>, KeyValueMapper<&'a Meta<T, TKey>>>;
 
 /// Iterator that emits the key and the mutable reference to the items stored in the slab.
 pub type IterMut<'a, T, TKey> =
-    GenericIter<Enumerate<SliceIterMut<'a, Entry<T, TKey>>>, KeyValueMapper>;
+    GenericIter<Enumerate<SliceIterMut<'a, Entry<T, TKey>>>, KeyValueMapper<&'a Meta<T, TKey>>>;
 
 /// Iterator that emits the keys an the items stored in the slab by consuming the slab.
-pub type IntoIter<TEntries> =
-    GenericIter<Enumerate<<TEntries as IntoIterator>::IntoIter>, KeyValueMapper>;
+pub type IntoIter<T, TKey, TEntries> =
+    GenericIter<Enumerate<<TEntries as IntoIterator>::IntoIter>, KeyValueMapper<Meta<T, TKey>>>;
 
 /// Iterator that emits the keys of the items stored in the slab.
-pub type Keys<'a, T, TKey> = GenericIter<Enumerate<SliceIter<'a, Entry<T, TKey>>>, KeyMapper>;
+pub type Keys<'a, T, TKey> =
+    GenericIter<Enumerate<SliceIter<'a, Entry<T, TKey>>>, KeyMapper<&'a Meta<T, TKey>>>;
 
 /// Iterator that emits references to the items stored in the slab.
 pub type Values<'a, T, TKey> = GenericIter<SliceIter<'a, Entry<T, TKey>>, ValueMapper>;
@@ -60,7 +74,7 @@ pub type IntoValues<TEntries> = GenericIter<<TEntries as IntoIterator>::IntoIter
 
 /// Iterator that emits the items stored in slab by draining the slab.
 pub type Drain<'a, T, TKey> =
-    GenericIter<Enumerate<SliceIterMut<'a, Entry<T, TKey>>>, DrainMapper<'a>>;
+    GenericIter<Enumerate<SliceIterMut<'a, Entry<T, TKey>>>, DrainMapper<&'a mut Meta<T, TKey>>>;
 
 /* GenericSlab */
 
@@ -103,13 +117,23 @@ where
     pub fn from_entries(mut entries: TEntries) -> Self {
         entries.clear();
 
-        Self {
+        let meta = Meta {
             len: 0,
-            entries,
+            key_context: TKey::Context::default(),
             first_vacant: 0,
-            key: PhantomData,
-            value: PhantomData,
-        }
+        };
+
+        Self { meta, entries }
+    }
+
+    /// Get a reference to the key context.
+    pub fn key_context(&self) -> &TKey::Context {
+        &self.meta.key_context
+    }
+
+    /// Get a reference to the key context.
+    pub fn key_context_mut(&mut self) -> &mut TKey::Context {
+        &mut self.meta.key_context
     }
 
     /// Return the number of values the slab can store without reallocating.
@@ -142,8 +166,8 @@ where
     /// ```
     pub fn clear(&mut self) {
         self.entries.clear();
-        self.len = 0;
-        self.first_vacant = 0;
+        self.meta.len = 0;
+        self.meta.first_vacant = 0;
     }
 
     /// Return the number of stored values.
@@ -161,7 +185,7 @@ where
     /// assert_eq!(3, slab.len());
     /// ```
     pub fn len(&self) -> usize {
-        self.len
+        self.meta.len
     }
 
     /// Return `true` if there are no values stored in the slab.
@@ -177,7 +201,7 @@ where
     /// assert!(!slab.is_empty());
     /// ```
     pub fn is_empty(&self) -> bool {
-        self.len == 0
+        self.meta.len == 0
     }
 
     /// Return a reference to the value associated with the given key.
@@ -196,8 +220,13 @@ where
     /// assert_eq!(slab.get(123), None);
     /// ```
     pub fn get(&self, key: TKey) -> Option<&T> {
-        match self.entries.as_ref().get(key.index()) {
-            Some(Entry::Occupied { value, key_data }) if key.verify(key_data) => Some(value),
+        let index = key.index(&self.meta.key_context);
+        match self.entries.as_ref().get(index) {
+            Some(Entry::Occupied { value, key_data })
+                if key.verify(&self.meta.key_context, key_data) =>
+            {
+                Some(value)
+            }
             _ => None,
         }
     }
@@ -220,8 +249,13 @@ where
     /// assert_eq!(slab.get_mut(123), None);
     /// ```
     pub fn get_mut(&mut self, key: TKey) -> Option<&mut T> {
-        match self.entries.as_mut().get_mut(key.index()) {
-            Some(Entry::Occupied { value, key_data }) if key.verify(key_data) => Some(value),
+        let index = key.index(&self.meta.key_context);
+        match self.entries.as_mut().get_mut(index) {
+            Some(Entry::Occupied { value, key_data })
+                if key.verify(&self.meta.key_context, key_data) =>
+            {
+                Some(value)
+            }
             _ => None,
         }
     }
@@ -254,8 +288,8 @@ where
     /// assert_eq!(slab[key2], 1);
     /// ```
     pub fn get2_mut(&mut self, key1: TKey, key2: TKey) -> Option<(&mut T, &mut T)> {
-        let index1 = key1.index();
-        let index2 = key2.index();
+        let index1 = key1.index(&self.meta.key_context);
+        let index2 = key2.index(&self.meta.key_context);
 
         assert!(index1 != index2);
 
@@ -279,7 +313,11 @@ where
                     value: value2,
                     key_data: data2,
                 }),
-            ) if key1.verify(data1) && key2.verify(data2) => Some((value1, value2)),
+            ) if key1.verify(&self.meta.key_context, data1)
+                && key2.verify(&self.meta.key_context, data2) =>
+            {
+                Some((value1, value2))
+            }
             _ => None,
         }
     }
@@ -307,7 +345,8 @@ where
     /// }
     /// ```
     pub unsafe fn get_unchecked(&self, key: TKey) -> &T {
-        match self.entries.as_ref().get_unchecked(key.index()) {
+        let index = key.index(&self.meta.key_context);
+        match self.entries.as_ref().get_unchecked(index) {
             Entry::Occupied { value, .. } => value,
             _ => unreachable!(),
         }
@@ -373,8 +412,8 @@ where
     /// assert_eq!(slab[key2], 1);
     /// ```
     pub unsafe fn get2_unchecked_mut(&mut self, key1: TKey, key2: TKey) -> (&mut T, &mut T) {
-        let index1 = key1.index();
-        let index2 = key2.index();
+        let index1 = key1.index(&self.meta.key_context);
+        let index2 = key2.index(&self.meta.key_context);
 
         debug_assert_ne!(index1, index2);
 
@@ -472,9 +511,9 @@ where
     /// ```
     pub fn iter(&self) -> Iter<'_, T, TKey> {
         GenericIter::new(
-            self.len,
+            self.meta.len,
             self.entries.as_ref().iter().enumerate(),
-            KeyValueMapper,
+            KeyValueMapper::new(&self.meta),
         )
     }
 
@@ -505,9 +544,9 @@ where
     /// ```
     pub fn iter_mut(&mut self) -> IterMut<'_, T, TKey> {
         GenericIter::new(
-            self.len,
+            self.meta.len,
             self.entries.as_mut().iter_mut().enumerate(),
-            KeyValueMapper,
+            KeyValueMapper::new(&self.meta),
         )
     }
 
@@ -537,9 +576,9 @@ where
     /// ```
     pub fn keys(&self) -> Keys<'_, T, TKey> {
         GenericIter::new(
-            self.len,
+            self.meta.len,
             self.entries.as_ref().iter().enumerate(),
-            KeyMapper,
+            KeyMapper::new(&self.meta),
         )
     }
 
@@ -568,7 +607,7 @@ where
     /// assert_eq!(iterator.next(), None);
     /// ```
     pub fn values(&self) -> Values<'_, T, TKey> {
-        GenericIter::new(self.len, self.entries.as_ref().iter(), ValueMapper)
+        GenericIter::new(self.meta.len, self.entries.as_ref().iter(), ValueMapper)
     }
 
     /// Return an iterator that emits mutable references to the stored items.
@@ -595,7 +634,7 @@ where
     /// assert_eq!(slab[key2], 3);
     /// ```
     pub fn values_mut(&mut self) -> ValuesMut<'_, T, TKey> {
-        GenericIter::new(self.len, self.entries.as_mut().iter_mut(), ValueMapper)
+        GenericIter::new(self.meta.len, self.entries.as_mut().iter_mut(), ValueMapper)
     }
 
     /// Insert a value in the slab, returning key assigned to the value.
@@ -617,7 +656,7 @@ where
     /// assert_eq!(slab[key], "hello");
     /// ```
     pub fn insert(&mut self, value: T) -> TKey {
-        let index = self.first_vacant;
+        let index = self.meta.first_vacant;
 
         self.insert_at(index, value);
 
@@ -645,7 +684,7 @@ where
     /// assert_eq!(slab.vacant_key(), 0);
     /// ```
     pub fn vacant_key(&self) -> TKey {
-        self.vacant_key_at(self.first_vacant)
+        self.vacant_key_at(self.meta.first_vacant)
     }
 
     /// Return a handle to a vacant entry allowing for further manipulation.
@@ -673,7 +712,7 @@ where
     /// ```
     pub fn vacant_entry(&mut self) -> GenericVacantEntry<'_, T, TKey, TEntries> {
         GenericVacantEntry {
-            index: self.first_vacant,
+            index: self.meta.first_vacant,
             slab: self,
         }
     }
@@ -694,9 +733,9 @@ where
     /// assert!(!slab.contains(hello));
     /// ```
     pub fn contains(&self, key: TKey) -> bool {
-        let index = key.index();
+        let index = key.index(&self.meta.key_context);
 
-        matches!(self.entries.as_ref().get(index), Some(Entry::Occupied { key_data, .. }) if key.verify(key_data))
+        matches!(self.entries.as_ref().get(index), Some(Entry::Occupied { key_data, .. }) if key.verify(&self.meta.key_context, key_data))
     }
 
     /// Tries to remove the value associated with the given key,
@@ -717,10 +756,11 @@ where
     /// assert!(!slab.contains(hello));
     /// ```
     pub fn try_remove(&mut self, key: TKey) -> Option<T> {
-        let index = key.index();
+        let index = key.index(&self.meta.key_context);
         let entry = self.entries.as_mut().get_mut(index);
 
-        if matches!(entry, Some(Entry::Occupied { key_data, .. }) if key.verify(key_data)) {
+        if matches!(entry, Some(Entry::Occupied { key_data, .. }) if key.verify(&self.meta.key_context, key_data))
+        {
             Some(self.remove_at(index))
         } else {
             None
@@ -781,9 +821,10 @@ where
     {
         for index in 0..self.entries.as_mut().len() {
             let keep = match &mut self.entries.as_mut()[index] {
-                Entry::Occupied { value, key_data } => {
-                    f(TKey::new_occupied(index, key_data), value)
-                }
+                Entry::Occupied { value, key_data } => f(
+                    TKey::new_occupied(&self.meta.key_context, index, key_data),
+                    value,
+                ),
                 _ => true,
             };
 
@@ -923,7 +964,7 @@ where
             fn drop(&mut self) {
                 if self.decrement {
                     // Value was popped and not pushed back on
-                    self.slab.len -= 1;
+                    self.slab.meta.len -= 1;
                 }
                 self.slab.recreate_vacant_list();
             }
@@ -936,7 +977,7 @@ where
         };
 
         // While there are vacant entries
-        while guard.slab.entries.as_ref().len() > guard.slab.len {
+        while guard.slab.entries.as_ref().len() > guard.slab.meta.len {
             // Find a value that needs to be moved,
             // by popping entries until we find an occupied one.
             // (entries cannot be empty because 0 is not greater than anything)
@@ -947,12 +988,17 @@ where
             {
                 // Found one, now find a vacant entry to move it to
                 let old_index = guard.slab.entries.as_ref().len();
-                let old_key = TKey::new_occupied(old_index, &key_data);
+                let old_key =
+                    TKey::new_occupied(&guard.slab.meta.key_context, old_index, &key_data);
                 let new_key = loop {
                     match guard.slab.entries.as_ref().get(occupied_until) {
                         Some(Entry::Occupied { .. }) => occupied_until += 1,
                         Some(Entry::Vacant { key_data, .. }) => {
-                            break TKey::new_vacant(occupied_until, Some(key_data));
+                            break TKey::new_vacant(
+                                &guard.slab.meta.key_context,
+                                occupied_until,
+                                Some(key_data),
+                            );
                         }
                         _ => unreachable!(),
                     }
@@ -978,14 +1024,14 @@ where
 
                 *entry = Entry::Occupied {
                     value,
-                    key_data: TKey::convert_into_occupied(key_data),
+                    key_data: TKey::convert_into_occupied(&guard.slab.meta.key_context, key_data),
                 };
 
                 occupied_until += 1;
             }
         }
 
-        guard.slab.first_vacant = guard.slab.len;
+        guard.slab.meta.first_vacant = guard.slab.meta.len;
         guard.slab.entries.shrink_to_fit();
 
         // Normal cleanup is not necessary
@@ -1021,46 +1067,50 @@ where
     /// ```
     pub fn drain(&mut self) -> Drain<'_, T, TKey> {
         GenericIter::new(
-            self.len,
+            self.meta.len,
             self.entries.as_mut().iter_mut().enumerate(),
-            DrainMapper::new(&mut self.len, &mut self.first_vacant),
+            DrainMapper::new(&mut self.meta),
         )
     }
 
     fn occupied_key_at(&self, index: usize) -> TKey {
         match &self.entries.as_ref()[index] {
-            Entry::Occupied { key_data, .. } => TKey::new_occupied(index, key_data),
+            Entry::Occupied { key_data, .. } => {
+                TKey::new_occupied(&self.meta.key_context, index, key_data)
+            }
             _ => unreachable!(),
         }
     }
 
     fn vacant_key_at(&self, index: usize) -> TKey {
         match self.entries.as_ref().get(index) {
-            Some(Entry::Vacant { key_data, .. }) => TKey::new_vacant(index, Some(key_data)),
-            None => TKey::new_vacant(index, None),
+            Some(Entry::Vacant { key_data, .. }) => {
+                TKey::new_vacant(&self.meta.key_context, index, Some(key_data))
+            }
+            None => TKey::new_vacant(&self.meta.key_context, index, None),
             _ => unimplemented!(),
         }
     }
 
     fn insert_at(&mut self, index: usize, value: T) {
-        self.len += 1;
+        self.meta.len += 1;
 
         if index == self.entries.as_ref().len() {
             self.entries.push(Entry::Occupied {
                 value,
                 key_data: Default::default(),
             });
-            self.first_vacant = index + 1;
+            self.meta.first_vacant = index + 1;
         } else {
             let entry = &mut self.entries.as_mut()[index];
 
             match replace(entry, Entry::Unknown) {
                 Entry::Vacant { next, key_data } => {
-                    let key_data = TKey::convert_into_occupied(key_data);
+                    let key_data = TKey::convert_into_occupied(&self.meta.key_context, key_data);
 
                     *entry = Entry::Occupied { value, key_data };
 
-                    self.first_vacant = next;
+                    self.meta.first_vacant = next;
                 }
                 _ => unreachable!(),
             }
@@ -1072,12 +1122,12 @@ where
         match replace(entry, Entry::Unknown) {
             Entry::Occupied { value, key_data } => {
                 *entry = Entry::Vacant {
-                    next: self.first_vacant,
-                    key_data: TKey::convert_into_vacant(key_data),
+                    next: self.meta.first_vacant,
+                    key_data: TKey::convert_into_vacant(&self.meta.key_context, key_data),
                 };
 
-                self.len -= 1;
-                self.first_vacant = index;
+                self.meta.len -= 1;
+                self.meta.first_vacant = index;
 
                 value
             }
@@ -1088,9 +1138,9 @@ where
     /// Iterate through all entries to recreate and repair the vacant list.
     /// self.len must be correct and is not modified.
     pub(crate) fn recreate_vacant_list(&mut self) {
-        self.first_vacant = self.entries.as_ref().len();
+        self.meta.first_vacant = self.entries.as_ref().len();
         // We can stop once we've found all vacant entries
-        let mut remaining_vacant = self.entries.as_ref().len() - self.len;
+        let mut remaining_vacant = self.entries.as_ref().len() - self.meta.len;
         if remaining_vacant == 0 {
             return;
         }
@@ -1100,9 +1150,9 @@ where
         // able to remove vacant entries.
         for (index, entry) in self.entries.as_mut().iter_mut().enumerate().rev() {
             if let Entry::Vacant { next, .. } = entry {
-                *next = self.first_vacant;
+                *next = self.meta.first_vacant;
 
-                self.first_vacant = index;
+                self.meta.first_vacant = index;
 
                 remaining_vacant -= 1;
                 if remaining_vacant == 0 {
@@ -1146,13 +1196,7 @@ where
     /// slab.insert(11);
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            len: 0,
-            entries: TEntries::with_capacity(capacity),
-            first_vacant: 0,
-            key: PhantomData,
-            value: PhantomData,
-        }
+        Self::from_entries(TEntries::with_capacity(capacity))
     }
 
     /// Reserve capacity for at least `additional` more values to be stored
@@ -1182,11 +1226,11 @@ where
     /// assert!(slab.capacity() >= 11);
     /// ```
     pub fn reserve(&mut self, additional: usize) {
-        if self.capacity() - self.len >= additional {
+        if self.capacity() - self.meta.len >= additional {
             return;
         }
 
-        let need_add = additional - (self.entries.as_ref().len() - self.len);
+        let need_add = additional - (self.entries.as_ref().len() - self.meta.len);
 
         self.entries.reserve(need_add);
     }
@@ -1218,11 +1262,11 @@ where
     /// assert!(slab.capacity() >= 11);
     /// ```
     pub fn reserve_exact(&mut self, additional: usize) {
-        if self.capacity() - self.len >= additional {
+        if self.capacity() - self.meta.len >= additional {
             return;
         }
 
-        let need_add = additional - (self.entries.as_ref().len() - self.len);
+        let need_add = additional - (self.entries.as_ref().len() - self.meta.len);
 
         self.entries.reserve_exact(need_add);
     }
@@ -1249,7 +1293,7 @@ where
             fmt.debug_map().entries(self.iter()).finish()
         } else {
             fmt.debug_struct("GenericSlab")
-                .field("len", &self.len)
+                .field("len", &self.meta.len)
                 .field("cap", &self.capacity())
                 .finish_non_exhaustive()
         }
@@ -1258,23 +1302,20 @@ where
 
 impl<T, TKey, TEntries> Clone for GenericSlab<T, TKey, TEntries>
 where
+    TKey: Key<T>,
     TEntries: Clone,
+    Meta<T, TKey>: Clone,
 {
     fn clone(&self) -> Self {
         Self {
-            len: self.len,
+            meta: self.meta.clone(),
             entries: self.entries.clone(),
-            first_vacant: self.first_vacant,
-            key: PhantomData,
-            value: PhantomData,
         }
     }
 
     fn clone_from(&mut self, source: &Self) {
+        self.meta.clone_from(&source.meta);
         self.entries.clone_from(&source.entries);
-
-        self.len = source.len;
-        self.first_vacant = source.first_vacant;
     }
 }
 
@@ -1308,13 +1349,13 @@ where
     TEntries: IntoIterator<Item = Entry<T, TKey>>,
 {
     type Item = (TKey, T);
-    type IntoIter = IntoIter<TEntries>;
+    type IntoIter = IntoIter<T, TKey, TEntries>;
 
     fn into_iter(self) -> Self::IntoIter {
         GenericIter::new(
-            self.len,
+            self.meta.len,
             self.entries.into_iter().enumerate(),
-            KeyValueMapper,
+            KeyValueMapper::new(self.meta),
         )
     }
 }
@@ -1377,6 +1418,22 @@ where
     }
 }
 
+/* Meta */
+
+impl<T, TKey> Clone for Meta<T, TKey>
+where
+    TKey: Key<T>,
+    TKey::Context: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            len: self.len,
+            key_context: self.key_context.clone(),
+            first_vacant: self.first_vacant,
+        }
+    }
+}
+
 /* GenericVacantEntry */
 
 impl<'a, T, TKey, TEntries> GenericVacantEntry<'a, T, TKey, TEntries>
@@ -1400,7 +1457,10 @@ where
     }
 }
 
-impl<'a, T, TKey, TEntries> Debug for GenericVacantEntry<'a, T, TKey, TEntries> {
+impl<'a, T, TKey, TEntries> Debug for GenericVacantEntry<'a, T, TKey, TEntries>
+where
+    TKey: Key<T>,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.debug_struct("GenericVacantEntry")
             .field("index", &self.index)

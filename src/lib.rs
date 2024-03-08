@@ -125,6 +125,7 @@ pub mod generic;
 
 mod builder;
 mod entries;
+mod handle;
 mod iter;
 mod key;
 
@@ -132,7 +133,7 @@ use alloc::vec::Vec;
 
 pub use crate::entries::Entry;
 pub use crate::generic::GenericSlab;
-pub use crate::key::Handle;
+pub use crate::handle::Handle;
 
 use crate::generic::GenericVacantEntry;
 
@@ -191,7 +192,7 @@ pub type StrongSlab<T> = GenericSlab<T, Handle<T>, Vec<Entry<T, Handle<T>>>>;
 pub type VacantEntry<'a, T> = GenericVacantEntry<'a, T, usize, Vec<Entry<T, usize>>>;
 
 /// A consuming iterator over the values stored in a `Slab`
-pub type IntoIter<T> = generic::IntoIter<Vec<Entry<T, usize>>>;
+pub type IntoIter<T> = generic::IntoIter<T, usize, Vec<Entry<T, usize>>>;
 
 /// An iterator over the values stored in the `Slab`
 pub type Iter<'a, T> = generic::Iter<'a, T, usize>;

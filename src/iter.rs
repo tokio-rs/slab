@@ -1,7 +1,9 @@
+use core::borrow::{Borrow, BorrowMut};
 use core::iter::FusedIterator;
 use core::mem::replace;
 
 use crate::entries::Entry;
+use crate::generic::Meta;
 use crate::key::Key;
 
 /* GenericIter */
@@ -118,11 +120,20 @@ pub trait Mapper<T> {
 /* KeyMapper */
 
 #[derive(Default, Debug)]
-pub struct KeyMapper;
+pub struct KeyMapper<TMeta> {
+    meta: TMeta,
+}
 
-impl<'a, T, TKey> Mapper<(usize, &'a Entry<T, TKey>)> for KeyMapper
+impl<TMeta> KeyMapper<TMeta> {
+    pub fn new(meta: TMeta) -> Self {
+        Self { meta }
+    }
+}
+
+impl<'a, T, TKey, TMeta> Mapper<(usize, &'a Entry<T, TKey>)> for KeyMapper<TMeta>
 where
     TKey: Key<T>,
+    TMeta: Borrow<Meta<T, TKey>>,
 {
     type Item = TKey;
 
@@ -131,7 +142,11 @@ where
         let (index, entry) = item;
 
         match entry {
-            Entry::Occupied { key_data, .. } => Some(TKey::new_occupied(index, key_data)),
+            Entry::Occupied { key_data, .. } => Some(TKey::new_occupied(
+                &self.meta.borrow().key_context,
+                index,
+                key_data,
+            )),
             _ => None,
         }
     }
@@ -190,11 +205,20 @@ where
 /* KeyValueMapper */
 
 #[derive(Default, Debug)]
-pub struct KeyValueMapper;
+pub struct KeyValueMapper<TMeta> {
+    meta: TMeta,
+}
 
-impl<T, TKey> Mapper<(usize, Entry<T, TKey>)> for KeyValueMapper
+impl<TMeta> KeyValueMapper<TMeta> {
+    pub fn new(meta: TMeta) -> Self {
+        Self { meta }
+    }
+}
+
+impl<T, TKey, TMeta> Mapper<(usize, Entry<T, TKey>)> for KeyValueMapper<TMeta>
 where
     TKey: Key<T>,
+    TMeta: Borrow<Meta<T, TKey>>,
 {
     type Item = (TKey, T);
 
@@ -204,7 +228,7 @@ where
 
         match entry {
             Entry::Occupied { value, key_data } => {
-                let key = TKey::new_occupied(index, &key_data);
+                let key = TKey::new_occupied(&self.meta.borrow().key_context, index, &key_data);
 
                 Some((key, value))
             }
@@ -213,9 +237,10 @@ where
     }
 }
 
-impl<'a, T, TKey> Mapper<(usize, &'a Entry<T, TKey>)> for KeyValueMapper
+impl<'a, T, TKey, TMeta> Mapper<(usize, &'a Entry<T, TKey>)> for KeyValueMapper<TMeta>
 where
     TKey: Key<T>,
+    TMeta: Borrow<Meta<T, TKey>>,
 {
     type Item = (TKey, &'a T);
 
@@ -225,7 +250,7 @@ where
 
         match entry {
             Entry::Occupied { value, key_data } => {
-                let key = TKey::new_occupied(index, key_data);
+                let key = TKey::new_occupied(&self.meta.borrow().key_context, index, key_data);
 
                 Some((key, value))
             }
@@ -234,9 +259,10 @@ where
     }
 }
 
-impl<'a, T, TKey> Mapper<(usize, &'a mut Entry<T, TKey>)> for KeyValueMapper
+impl<'a, T, TKey, TMeta> Mapper<(usize, &'a mut Entry<T, TKey>)> for KeyValueMapper<TMeta>
 where
     TKey: Key<T>,
+    TMeta: Borrow<Meta<T, TKey>>,
 {
     type Item = (TKey, &'a mut T);
 
@@ -246,7 +272,7 @@ where
 
         match entry {
             Entry::Occupied { value, key_data } => {
-                let key = TKey::new_occupied(index, key_data);
+                let key = TKey::new_occupied(&self.meta.borrow().key_context, index, key_data);
 
                 Some((key, value))
             }
@@ -258,22 +284,22 @@ where
 /* DrainMapper */
 
 #[derive(Debug)]
-pub struct DrainMapper<'a> {
-    len: &'a mut usize,
-    first_vacant: &'a mut usize,
+pub struct DrainMapper<TMeta> {
+    meta: TMeta,
 }
 
-impl<'a> DrainMapper<'a> {
+impl<TMeta> DrainMapper<TMeta> {
     #[inline]
-    pub fn new(len: &'a mut usize, first_vacant: &'a mut usize) -> Self {
-        Self { len, first_vacant }
+    pub fn new(meta: TMeta) -> Self {
+        Self { meta }
     }
 }
 
-impl<'a, T, TKey> Mapper<(usize, &'a mut Entry<T, TKey>)> for DrainMapper<'a>
+impl<'a, T, TKey, TMeta> Mapper<(usize, &'a mut Entry<T, TKey>)> for DrainMapper<TMeta>
 where
     T: 'a,
     TKey: Key<T> + 'a,
+    TMeta: BorrowMut<Meta<T, TKey>>,
 {
     type Item = T;
 
@@ -283,15 +309,16 @@ where
 
         match replace(entry, Entry::Unknown) {
             Entry::Occupied { value, key_data } => {
-                let key_data = TKey::convert_into_vacant(key_data);
+                let meta = self.meta.borrow_mut();
+                let key_data = TKey::convert_into_vacant(&meta.key_context, key_data);
 
                 *entry = Entry::Vacant {
-                    next: *self.first_vacant,
+                    next: meta.first_vacant,
                     key_data,
                 };
 
-                *self.len -= 1;
-                *self.first_vacant = index;
+                meta.len -= 1;
+                meta.first_vacant = index;
 
                 Some(value)
             }
