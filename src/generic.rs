@@ -91,7 +91,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let slab: Slab<i32> = Slab::new();
     /// ```
     pub fn new() -> Self {
@@ -111,7 +111,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let slab: Slab<i32> = Slab::from_entries(Vec::with_capacity(100));
     /// ```
     pub fn from_entries(mut entries: TEntries) -> Self {
@@ -141,7 +141,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let slab: Slab<i32> = Slab::with_capacity(10);
     /// assert_eq!(slab.capacity(), 10);
     /// ```
@@ -154,7 +154,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     ///
     /// for i in 0..3 {
@@ -175,7 +175,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     ///
     /// for i in 0..3 {
@@ -193,7 +193,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     /// assert!(slab.is_empty());
     ///
@@ -212,7 +212,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     /// let key = slab.insert("hello");
     ///
@@ -239,7 +239,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     /// let key = slab.insert("hello");
     ///
@@ -276,7 +276,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// use std::mem;
     ///
     /// let mut slab = Slab::new();
@@ -336,7 +336,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     /// let key = slab.insert(2);
     ///
@@ -366,7 +366,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     /// let key = slab.insert(2);
     ///
@@ -400,7 +400,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// use std::mem;
     ///
     /// let mut slab = Slab::new();
@@ -445,7 +445,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     ///
     /// let mut slab = Slab::new();
     /// let key = slab.insert(String::from("foo"));
@@ -457,7 +457,7 @@ where
     /// will result in a panic:
     ///
     /// ```should_panic
-    /// # use slab::*;
+    /// # use generic_slab::*;
     ///
     /// let mut slab = Slab::new();
     /// let key = slab.insert(0);
@@ -495,7 +495,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     ///
     /// for i in 0..3 {
@@ -527,7 +527,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     ///
     /// let key1 = slab.insert(0);
@@ -560,7 +560,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     ///
     /// for i in 0..3 {
@@ -592,7 +592,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     ///
     /// for i in 0..3 {
@@ -620,7 +620,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     ///
     /// let key1 = slab.insert(0);
@@ -650,7 +650,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     /// let key = slab.insert("hello");
     /// assert_eq!(slab[key], "hello");
@@ -672,7 +672,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     /// assert_eq!(slab.vacant_key(), 0);
     ///
@@ -696,7 +696,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     ///
     /// let hello = {
@@ -722,7 +722,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     ///
     /// let hello = slab.insert("hello");
@@ -747,7 +747,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     ///
     /// let hello = slab.insert("hello");
@@ -779,7 +779,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     ///
     /// let hello = slab.insert("hello");
@@ -800,7 +800,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     ///
     /// let k1 = slab.insert(0);
@@ -847,7 +847,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::with_capacity(10);
     ///
     /// for i in 0..3 {
@@ -862,7 +862,7 @@ where
     /// values are removed:
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::with_capacity(10);
     ///
     /// for i in 0..4 {
@@ -917,7 +917,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     ///
     /// let mut slab = Slab::with_capacity(10);
     /// let a = slab.insert('a');
@@ -934,7 +934,7 @@ where
     /// The value is not moved when the closure returns `Err`:
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     ///
     /// let mut slab = Slab::with_capacity(100);
     /// let a = slab.insert('a');
@@ -1047,7 +1047,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     ///
     /// let _ = slab.insert(0);
@@ -1181,7 +1181,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::with_capacity(10);
     ///
     /// // The slab contains no values, even though it has capacity for more
@@ -1219,7 +1219,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     /// slab.insert("hello");
     /// slab.reserve(10);
@@ -1255,7 +1255,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// # use slab::*;
+    /// # use generic_slab::*;
     /// let mut slab = Slab::new();
     /// slab.insert("hello");
     /// slab.reserve_exact(10);

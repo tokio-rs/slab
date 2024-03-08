@@ -31,7 +31,7 @@
 //! Basic storing and retrieval.
 //!
 //! ```
-//! # use slab::*;
+//! # use generic_slab::*;
 //! let mut slab = Slab::new();
 //!
 //! let hello = slab.insert("hello");
@@ -48,7 +48,7 @@
 //! inserted in the slab. This can be done with the `vacant_entry` API as such:
 //!
 //! ```
-//! # use slab::*;
+//! # use generic_slab::*;
 //! let mut slab = Slab::new();
 //!
 //! let hello = {
@@ -69,7 +69,7 @@
 //! To avoid this, add a check.
 //!
 //! ```
-//! # use slab::*;
+//! # use generic_slab::*;
 //! let mut slab = Slab::with_capacity(1024);
 //!
 //! // ... use the slab
@@ -153,7 +153,7 @@ pub type Slab<T> = GenericSlab<T, usize, Vec<Entry<T, usize>>>;
 /// # Examples
 ///
 /// ```
-/// # use slab::*;
+/// # use generic_slab::*;
 /// let mut slab = StrongSlab::default();
 ///
 /// let hello = slab.insert("hello");
@@ -175,7 +175,7 @@ pub type StrongSlab<T> = GenericSlab<T, Handle<T>, Vec<Entry<T, Handle<T>>>>;
 /// # Examples
 ///
 /// ```
-/// # use slab::*;
+/// # use generic_slab::*;
 /// let mut slab = Slab::new();
 ///
 /// let hello = {

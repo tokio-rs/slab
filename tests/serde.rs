@@ -1,9 +1,9 @@
 #![cfg(feature = "serde")]
 #![warn(rust_2018_idioms)]
 
+use generic_slab::Slab;
 use serde::{Deserialize, Serialize};
 use serde_test::{assert_tokens, Token};
-use slab::Slab;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(transparent)]

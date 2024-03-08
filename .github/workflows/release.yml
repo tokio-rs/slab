@@ -7,7 +7,7 @@ on:
 
 jobs:
   create-release:
-    if: github.repository_owner == 'tokio-rs'
+    if: github.repository_owner == 'Bergmann89'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

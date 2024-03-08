@@ -1,6 +1,6 @@
 #![warn(rust_2018_idioms)]
 
-use slab::*;
+use generic_slab::*;
 
 use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 
@@ -414,25 +414,25 @@ fn from_iterator_unordered() {
 // https://github.com/tokio-rs/slab/issues/100
 #[test]
 fn from_iterator_issue_100() {
-    let mut slab: slab::Slab<()> = vec![(1, ())].into_iter().collect();
+    let mut slab: generic_slab::Slab<()> = vec![(1, ())].into_iter().collect();
     assert_eq!(slab.len(), 1);
     assert_eq!(slab.insert(()), 0);
     assert_eq!(slab.insert(()), 2);
     assert_eq!(slab.insert(()), 3);
 
-    let mut slab: slab::Slab<()> = vec![(1, ()), (2, ())].into_iter().collect();
+    let mut slab: generic_slab::Slab<()> = vec![(1, ()), (2, ())].into_iter().collect();
     assert_eq!(slab.len(), 2);
     assert_eq!(slab.insert(()), 0);
     assert_eq!(slab.insert(()), 3);
     assert_eq!(slab.insert(()), 4);
 
-    let mut slab: slab::Slab<()> = vec![(1, ()), (3, ())].into_iter().collect();
+    let mut slab: generic_slab::Slab<()> = vec![(1, ()), (3, ())].into_iter().collect();
     assert_eq!(slab.len(), 2);
     assert_eq!(slab.insert(()), 2);
     assert_eq!(slab.insert(()), 0);
     assert_eq!(slab.insert(()), 4);
 
-    let mut slab: slab::Slab<()> = vec![(0, ()), (2, ()), (3, ()), (5, ())]
+    let mut slab: generic_slab::Slab<()> = vec![(0, ()), (2, ()), (3, ()), (5, ())]
         .into_iter()
         .collect();
     assert_eq!(slab.len(), 4);
