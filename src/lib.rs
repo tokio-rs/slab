@@ -1200,6 +1200,51 @@ impl<T> Slab<T> {
             len: old_len,
         }
     }
+
+    /// Construct a new slab with a new allocation by mapping each entry of the
+    /// slab through a function.
+    ///
+    /// This preserves not only the locations of entries but also the order of
+    /// the vacant list, which `slab.iter().map(f).collect()` would not.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use slab::*;
+    /// let mut slab1 = Slab::new();
+    ///
+    /// let k1 = slab1.insert(0);
+    /// let k2 = slab1.insert(1);
+    /// let k3 = slab1.insert(2);
+    ///
+    /// slab1.remove(k2);
+    ///
+    /// let mut slab2 = slab1.new_mapped(|_k, n| n.to_string());
+    ///
+    /// let k4 = slab1.insert(3);
+    /// assert_eq!(k4, slab2.insert(3.to_string()));
+    ///
+    /// assert_eq!(2, slab1.remove(k3));
+    /// assert_eq!("2", slab2.remove(k3));
+    /// ```
+    pub fn new_mapped<T2, F>(&self, mut f: F) -> Slab<T2>
+    where
+        F: FnMut(usize, &T) -> T2,
+    {
+        Slab {
+            entries: self
+                .entries
+                .iter()
+                .enumerate()
+                .map(|(key, entry)| match entry {
+                    &Entry::Vacant(next) => Entry::Vacant(next),
+                    &Entry::Occupied(ref t) => Entry::Occupied(f(key, t)),
+                })
+                .collect(),
+            next: self.next,
+            len: self.len,
+        }
+    }
 }
 
 impl<T> ops::Index<usize> for Slab<T> {
