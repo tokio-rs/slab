@@ -1,4 +1,7 @@
 fn main() {
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rustc-check-cfg=cfg(slab_no_const_vec_new,slab_no_track_caller)");
+
     let cfg = match autocfg::AutoCfg::new() {
         Ok(cfg) => cfg,
         Err(e) => {
