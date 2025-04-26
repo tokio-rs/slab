@@ -37,20 +37,7 @@ jobs:
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack
       - run: cargo hack build --rust-version
-
-  no-std:
-    strategy:
-      matrix:
-        rust:
-          # This is the minimum supported Rust version for "no_std"
-          - 1.36.0
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust
-        run: rustup update ${{ matrix.rust }} && rustup default ${{ matrix.rust }}
-      - run: rustup target add thumbv7m-none-eabi
-      - run: cargo build --no-default-features --target thumbv7m-none-eabi
+      - run: cargo hack build --rust-version --no-default-features --target thumbv7m-none-eabi
 
   miri:
     runs-on: ubuntu-latest

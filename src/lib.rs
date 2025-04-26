@@ -242,30 +242,13 @@ impl<T> Slab<T> {
     /// The function does not allocate and the returned slab will have no
     /// capacity until `insert` is called or capacity is explicitly reserved.
     ///
-    /// This is `const fn` on Rust 1.39+.
-    ///
     /// # Examples
     ///
     /// ```
     /// # use slab::*;
     /// let slab: Slab<i32> = Slab::new();
     /// ```
-    #[cfg(not(slab_no_const_vec_new))]
     pub const fn new() -> Self {
-        Self {
-            entries: Vec::new(),
-            next: 0,
-            len: 0,
-        }
-    }
-    /// Construct a new, empty `Slab`.
-    ///
-    /// The function does not allocate and the returned slab will have no
-    /// capacity until `insert` is called or capacity is explicitly reserved.
-    ///
-    /// This is `const fn` on Rust 1.39+.
-    #[cfg(slab_no_const_vec_new)]
-    pub fn new() -> Self {
         Self {
             entries: Vec::new(),
             next: 0,
@@ -929,7 +912,7 @@ impl<T> Slab<T> {
     /// slab.key_of(bad); // this will panic
     /// unreachable!();
     /// ```
-    #[cfg_attr(not(slab_no_track_caller), track_caller)]
+    #[track_caller]
     pub fn key_of(&self, present_element: &T) -> usize {
         let element_ptr = present_element as *const T as usize;
         let base_ptr = self.entries.as_ptr() as usize;
@@ -1098,7 +1081,7 @@ impl<T> Slab<T> {
     /// assert_eq!(slab.remove(hello), "hello");
     /// assert!(!slab.contains(hello));
     /// ```
-    #[cfg_attr(not(slab_no_track_caller), track_caller)]
+    #[track_caller]
     pub fn remove(&mut self, key: usize) -> T {
         self.try_remove(key).expect("invalid key")
     }
@@ -1119,10 +1102,7 @@ impl<T> Slab<T> {
     /// assert!(!slab.contains(hello));
     /// ```
     pub fn contains(&self, key: usize) -> bool {
-        match self.entries.get(key) {
-            Some(&Entry::Occupied(_)) => true,
-            _ => false,
-        }
+        matches!(self.entries.get(key), Some(&Entry::Occupied(_)))
     }
 
     /// Retain only the elements specified by the predicate.
@@ -1206,7 +1186,7 @@ impl<T> Slab<T> {
 impl<T> ops::Index<usize> for Slab<T> {
     type Output = T;
 
-    #[cfg_attr(not(slab_no_track_caller), track_caller)]
+    #[track_caller]
     fn index(&self, key: usize) -> &T {
         match self.entries.get(key) {
             Some(Entry::Occupied(v)) => v,
@@ -1216,7 +1196,7 @@ impl<T> ops::Index<usize> for Slab<T> {
 }
 
 impl<T> ops::IndexMut<usize> for Slab<T> {
-    #[cfg_attr(not(slab_no_track_caller), track_caller)]
+    #[track_caller]
     fn index_mut(&mut self, key: usize) -> &mut T {
         match self.entries.get_mut(key) {
             Some(&mut Entry::Occupied(ref mut v)) => v,
