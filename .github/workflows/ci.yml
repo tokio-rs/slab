@@ -42,8 +42,7 @@ jobs:
     strategy:
       matrix:
         rust:
-          # This is the minimum supported Rust version for "no_std"
-          - 1.36.0
+          - 1.46.0
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
