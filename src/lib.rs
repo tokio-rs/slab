@@ -805,6 +805,7 @@ impl<T> Slab<T> {
     }
 
     /// Returns mutable references to many indices at once.
+    ///
     /// Returns [`GetDisjointMutError`] if the indices are out of bounds,
     /// overlapping, or vacant.
     pub fn get_disjoint_mut<const N: usize>(
