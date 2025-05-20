@@ -125,6 +125,7 @@ mod builder;
 
 use alloc::vec::{self, Vec};
 use core::iter::{self, FromIterator, FusedIterator};
+use core::mem::MaybeUninit;
 use core::{fmt, mem, ops, slice};
 
 /// Pre-allocated storage for a uniform data type
@@ -168,6 +169,33 @@ impl<T> Default for Slab<T> {
         Slab::new()
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+/// The error type returned by [`Slab::get_disjoint_mut`].
+pub enum GetDisjointMutError {
+    /// An index provided was not associated with a value.
+    IndexVacant,
+
+    /// An index provided was out-of-bounds for the slab.
+    IndexOutOfBounds,
+
+    /// Two indices provided were overlapping.
+    OverlappingIndices,
+}
+
+impl fmt::Display for GetDisjointMutError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let msg = match self {
+            GetDisjointMutError::IndexVacant => "an index is vacant",
+            GetDisjointMutError::IndexOutOfBounds => "an index is out of bounds",
+            GetDisjointMutError::OverlappingIndices => "there were overlapping indices",
+        };
+        fmt::Display::fmt(msg, f)
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for GetDisjointMutError {}
 
 /// A handle to a vacant entry in a `Slab`.
 ///
@@ -774,6 +802,49 @@ impl<T> Slab<T> {
             ) => Some((val1, val2)),
             _ => None,
         }
+    }
+
+    /// Returns mutable references to many indices at once.
+    ///
+    /// Returns [`GetDisjointMutError`] if the indices are out of bounds,
+    /// overlapping, or vacant.
+    pub fn get_disjoint_mut<const N: usize>(
+        &mut self,
+        keys: [usize; N],
+    ) -> Result<[&mut T; N], GetDisjointMutError> {
+        // NB: The optimizer should inline the loops into a sequence
+        // of instructions without additional branching.
+        for (i, &key) in keys.iter().enumerate() {
+            for &prev_key in &keys[..i] {
+                if key == prev_key {
+                    return Err(GetDisjointMutError::OverlappingIndices);
+                }
+            }
+        }
+
+        let entries_ptr = self.entries.as_mut_ptr();
+        let entries_cap = self.entries.capacity();
+
+        let mut res = MaybeUninit::<[&mut T; N]>::uninit();
+        let res_ptr = res.as_mut_ptr() as *mut &mut T;
+
+        for (i, &key) in keys.iter().enumerate() {
+            if key >= entries_cap {
+                return Err(GetDisjointMutError::IndexOutOfBounds);
+            }
+            // SAFETY: we made sure above that this key is in bounds.
+            match unsafe { &mut *entries_ptr.add(key) } {
+                Entry::Vacant(_) => return Err(GetDisjointMutError::IndexVacant),
+                Entry::Occupied(entry) => {
+                    // SAFETY: `res` and `keys` both have N elements so `i` must be in bounds.
+                    // We checked above that all selected `entry`s are distinct.
+                    unsafe { res_ptr.add(i).write(entry) };
+                }
+            }
+        }
+        // SAFETY: the loop above only terminates successfully if it initialized
+        // all elements of this array.
+        Ok(unsafe { res.assume_init() })
     }
 
     /// Return a reference to the value associated with the given key without
