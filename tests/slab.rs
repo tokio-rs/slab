@@ -698,6 +698,35 @@ fn drain_rev() {
 }
 
 #[test]
+fn partially_consumer_drain_filter() {
+    let mut slab = Slab::new();
+    for i in 0..10 {
+        slab.insert(i);
+    }
+
+    let drained = slab
+        .drain_filter(|x| x % 2 == 0)
+        .map(|(_, x)| x)
+        .collect::<Vec<_>>();
+    assert_eq!(drained, (0..5).map(|x| x * 2).collect::<Vec<_>>());
+}
+
+#[test]
+fn fully_consumer_drain_filter() {
+    let mut slab = Slab::new();
+    for i in 0..10 {
+        slab.insert(i);
+    }
+
+    let drained = slab
+        .drain_filter(|_| true)
+        .map(|(_, x)| x)
+        .collect::<Vec<_>>();
+    assert_eq!(drained, (0..10).collect::<Vec<_>>());
+    assert!(slab.is_empty());
+}
+
+#[test]
 fn try_remove() {
     let mut slab = Slab::new();
 
