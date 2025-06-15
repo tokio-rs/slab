@@ -1,4 +1,4 @@
-* 0.4.10 (June 15, 2025)
+# 0.4.10 (June 15, 2025)
 
 * Add `Slab::get_disjoint_mut` (#149)
 * Drop build script and `autocfg` dependency (#150)
