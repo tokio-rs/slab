@@ -1,3 +1,7 @@
+# 0.4.11 (August 8, 2025)
+
+* Fix `Slab::get_disjoint_mut` out of bounds (#152)
+
 # 0.4.10 (June 15, 2025)
 
 * Add `Slab::get_disjoint_mut` (#149)
