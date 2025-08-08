@@ -767,3 +767,16 @@ fn get_disjoint_mut() {
     assert_eq!(slab[0], 4);
     assert_eq!(slab[4], 0);
 }
+
+#[test]
+fn get_disjoint_mut_out_of_bounds_index_error() {
+    let mut slab: Slab<i32> = Slab::with_capacity(10);
+    slab.insert(1);
+    slab.insert(2);
+
+    // Index 0 and 1 are valid, but index 5 is out of bounds (beyond len)
+    assert_eq!(
+        slab.get_disjoint_mut([0, 1, 5]),
+        Err(GetDisjointMutError::IndexOutOfBounds)
+    );
+}

@@ -823,13 +823,14 @@ impl<T> Slab<T> {
         }
 
         let entries_ptr = self.entries.as_mut_ptr();
-        let entries_cap = self.entries.capacity();
+        let entries_len = self.entries.len();
 
         let mut res = MaybeUninit::<[&mut T; N]>::uninit();
         let res_ptr = res.as_mut_ptr() as *mut &mut T;
 
         for (i, &key) in keys.iter().enumerate() {
-            if key >= entries_cap {
+            // `key` won't be greater than `entries_len`.
+            if key >= entries_len {
                 return Err(GetDisjointMutError::IndexOutOfBounds);
             }
             // SAFETY: we made sure above that this key is in bounds.
