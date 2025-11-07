@@ -1346,7 +1346,7 @@ impl<T> FromIterator<(usize, T)> for Slab<T> {
         let mut builder = builder::Builder::with_capacity(iterator.size_hint().0);
 
         for (key, value) in iterator {
-            builder.pair(key, value)
+            builder.pair(key, value);
         }
         builder.build()
     }
