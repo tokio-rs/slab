@@ -27,6 +27,17 @@
 //! value associated with a given key is removed from a slab, that key may be
 //! returned from future calls to `insert`.
 //!
+//! # Performance notes
+//!
+//! Methods that remove values and return them, such as `remove()` and
+//! `try_remove()`, might copy the values to the stack even if the returned
+//! values are unused. For types that don't have drop glue, the compiler can
+//! usually elide these copies.
+//!
+//! For types that need drop logic, you may be able to avoid copies by
+//! wrapping with `std::mem::ManuallyDrop` and carefully dropping values
+//! in-place prior to removal.
+//!
 //! # Examples
 //!
 //! Basic storing and retrieval.
@@ -1115,18 +1126,13 @@ impl<T> Slab<T> {
     /// ```
     pub fn try_remove(&mut self, key: usize) -> Option<T> {
         if let Some(entry) = self.entries.get_mut(key) {
-            // Swap the entry at the provided value
-            let prev = mem::replace(entry, Entry::Vacant(self.next));
-
-            match prev {
-                Entry::Occupied(val) => {
-                    self.len -= 1;
-                    self.next = key;
-                    return val.into();
-                }
-                _ => {
-                    // Woops, the entry is actually vacant, restore the state
-                    *entry = prev;
+            if let Entry::Occupied(_) = entry {
+                self.len -= 1;
+                let prev = std::mem::replace(entry, Entry::Vacant(self.next));
+                self.next = key;
+                match prev {
+                    Entry::Occupied(val) => return val.into(),
+                    _ => unreachable!(),
                 }
             }
         }
