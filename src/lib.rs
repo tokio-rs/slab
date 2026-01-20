@@ -29,13 +29,13 @@
 //!
 //! # Performance notes
 //!
-//! Methods that remove values and return them, such as `remove()` and
-//! `try_remove()`, might copy the values to the stack even if the returned
-//! values are unused. For types that don't have drop glue, the compiler can
-//! usually elide these copies.
+//! Methods that remove values and return them, such as [`Slab::remove`] and
+//! [`Slab::try_remove`], might copy the removed values to the stack even if
+//! their return values are unused. For types that don't have drop glue, the
+//! compiler can usually elide these copies.
 //!
-//! For types that need drop logic, you may be able to avoid copies by
-//! wrapping with `std::mem::ManuallyDrop` and carefully dropping values
+//! For types that need drop logic, copies during removals may be avoidable
+//! by wrapping with [`std::mem::ManuallyDrop`] and carefully dropping values
 //! in-place prior to removal.
 //!
 //! # Examples
