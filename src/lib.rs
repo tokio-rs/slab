@@ -34,10 +34,6 @@
 //! their return values are unused. For types that don't have drop glue, the
 //! compiler can usually elide these copies.
 //!
-//! For types that need drop logic, copies during removals may be avoidable
-//! by wrapping with [`std::mem::ManuallyDrop`] and carefully dropping values
-//! in-place prior to removal.
-//!
 //! # Examples
 //!
 //! Basic storing and retrieval.
@@ -1130,6 +1126,8 @@ impl<T> Slab<T> {
                 self.len -= 1;
                 let prev = std::mem::replace(entry, Entry::Vacant(self.next));
                 self.next = key;
+
+                // the entry was confirmed occupied above
                 match prev {
                     Entry::Occupied(val) => return val.into(),
                     _ => unreachable!(),
