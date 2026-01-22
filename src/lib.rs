@@ -1123,15 +1123,20 @@ impl<T> Slab<T> {
     pub fn try_remove(&mut self, key: usize) -> Option<T> {
         if let Some(entry) = self.entries.get_mut(key) {
             if let Entry::Occupied(_) = entry {
-                self.len -= 1;
-                let prev = std::mem::replace(entry, Entry::Vacant(self.next));
-                self.next = key;
+                // Here we use `std::mem::replace` to move the entry's value to
+                // the stack and set the entry as vacant in one shot. By doing
+                // this only when the entry is occupied, the compiler should be
+                // able to elide copying the bytes to the stack if the value
+                // turns out to be unused.
 
-                // the entry was confirmed occupied above
-                match prev {
-                    Entry::Occupied(val) => return val.into(),
+                let val = match std::mem::replace(entry, Entry::Vacant(self.next)) {
+                    Entry::Occupied(val) => val, // confirmed occupied above
                     _ => unreachable!(),
-                }
+                };
+
+                self.len -= 1;
+                self.next = key;
+                return val.into();
             }
         }
         None
