@@ -1129,7 +1129,7 @@ impl<T> Slab<T> {
                 // able to elide copying the bytes to the stack if the value
                 // turns out to be unused.
 
-                let val = match std::mem::replace(entry, Entry::Vacant(self.next)) {
+                let val = match core::mem::replace(entry, Entry::Vacant(self.next)) {
                     Entry::Occupied(val) => val, // confirmed occupied above
                     _ => unreachable!(),
                 };
