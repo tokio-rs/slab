@@ -27,3 +27,6 @@ serde = { version = "1.0.95", optional = true, default-features = false, feature
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_test = "1"
+
+[package.metadata.docs.rs]
+all-features = true
