@@ -660,9 +660,9 @@ fn fully_consumed_drain() {
 
     {
         let mut drain = slab.drain();
-        assert_eq!(Some(0), drain.next());
-        assert_eq!(Some(1), drain.next());
-        assert_eq!(Some(2), drain.next());
+        assert_eq!(Some((0, 0)), drain.next());
+        assert_eq!(Some((1, 1)), drain.next());
+        assert_eq!(Some((2, 2)), drain.next());
         assert_eq!(None, drain.next());
     }
 
@@ -679,10 +679,30 @@ fn partially_consumed_drain() {
 
     {
         let mut drain = slab.drain();
-        assert_eq!(Some(0), drain.next());
+        assert_eq!(Some((0, 0)), drain.next());
     }
 
     assert!(slab.is_empty())
+}
+
+#[test]
+fn drain() {
+    let mut slab = Slab::new();
+
+    for i in 0..8 {
+        slab.insert(i);
+    }
+    slab.remove(0);
+    slab.remove(4);
+    slab.remove(5);
+    slab.remove(7);
+
+    let vals: Vec<_> = slab
+        .drain()
+        .inspect(|&(key, val)| assert_eq!(key, val))
+        .map(|(_, val)| val)
+        .collect();
+    assert_eq!(vals, vec![1, 2, 3, 6]);
 }
 
 #[test]
@@ -693,8 +713,15 @@ fn drain_rev() {
     }
     slab.remove(9);
 
-    let vals: Vec<u64> = slab.drain().rev().collect();
-    assert_eq!(vals, (0..9).rev().collect::<Vec<u64>>());
+    let mut drain = slab.drain();
+    assert_eq!(drain.next_back(), Some((8, 8)));
+
+    let vals: Vec<_> = drain
+        .inspect(|&(key, val)| assert_eq!(key, val))
+        .map(|(_, v)| v)
+        .rev()
+        .collect();
+    assert_eq!(vals, (0..8).rev().collect::<Vec<_>>());
 }
 
 #[test]
