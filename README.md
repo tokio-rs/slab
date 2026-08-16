@@ -42,7 +42,6 @@ See [documentation](https://docs.rs/slab) for more details.
 
 ## Feature flags
 
-- std (*enabled by default*) — Enables APIs that depend on `std`.
 - serde — Enables `serde` support (implements `Serialize` and `Deserialize` traits).
 
 ## License

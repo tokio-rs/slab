@@ -119,12 +119,7 @@
 //!
 //! [`Slab::with_capacity`]: struct.Slab.html#with_capacity
 
-#[cfg(not(feature = "std"))]
 extern crate alloc;
-#[cfg(feature = "std")]
-extern crate std;
-#[cfg(feature = "std")]
-extern crate std as alloc;
 
 #[cfg(feature = "serde")]
 mod serde;
@@ -202,8 +197,7 @@ impl fmt::Display for GetDisjointMutError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for GetDisjointMutError {}
+impl core::error::Error for GetDisjointMutError {}
 
 /// A handle to a vacant entry in a `Slab`.
 ///
@@ -1124,7 +1118,7 @@ impl<T> Slab<T> {
     pub fn try_remove(&mut self, key: usize) -> Option<T> {
         if let Some(entry) = self.entries.get_mut(key) {
             if let Entry::Occupied(_) = entry {
-                // Here we use `std::mem::replace` to move the entry's value to
+                // Here we use `core::mem::replace` to move the entry's value to
                 // the stack and set the entry as vacant in one shot. By doing
                 // this only when the entry is occupied, the compiler should be
                 // able to elide copying the bytes to the stack if the value
