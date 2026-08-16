@@ -262,7 +262,7 @@ pub struct IterMut<'a, T> {
 
 /// A draining iterator for `Slab`
 pub struct Drain<'a, T> {
-    inner: vec::Drain<'a, Entry<T>>,
+    inner: iter::Enumerate<vec::Drain<'a, Entry<T>>>,
     len: usize,
 }
 
@@ -1246,9 +1246,9 @@ impl<T> Slab<T> {
     /// {
     ///     let mut drain = slab.drain();
     ///
-    ///     assert_eq!(Some(0), drain.next());
-    ///     assert_eq!(Some(1), drain.next());
-    ///     assert_eq!(Some(2), drain.next());
+    ///     assert_eq!(Some((0, 0)), drain.next());
+    ///     assert_eq!(Some((1, 1)), drain.next());
+    ///     assert_eq!(Some((2, 2)), drain.next());
     ///     assert_eq!(None, drain.next());
     /// }
     ///
@@ -1259,7 +1259,7 @@ impl<T> Slab<T> {
         self.len = 0;
         self.next = 0;
         Drain {
-            inner: self.entries.drain(..),
+            inner: self.entries.drain(..).enumerate(),
             len: old_len,
         }
     }
@@ -1612,13 +1612,13 @@ impl<T> FusedIterator for IterMut<'_, T> {}
 // ===== Drain =====
 
 impl<T> Iterator for Drain<'_, T> {
-    type Item = T;
+    type Item = (usize, T);
 
     fn next(&mut self) -> Option<Self::Item> {
-        for entry in &mut self.inner {
+        for (key, entry) in &mut self.inner {
             if let Entry::Occupied(v) = entry {
                 self.len -= 1;
-                return Some(v);
+                return Some((key, v));
             }
         }
 
@@ -1633,10 +1633,10 @@ impl<T> Iterator for Drain<'_, T> {
 
 impl<T> DoubleEndedIterator for Drain<'_, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        while let Some(entry) = self.inner.next_back() {
+        while let Some((key, entry)) = self.inner.next_back() {
             if let Entry::Occupied(v) = entry {
                 self.len -= 1;
-                return Some(v);
+                return Some((key, v));
             }
         }
 
