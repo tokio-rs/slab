@@ -780,3 +780,87 @@ fn get_disjoint_mut_out_of_bounds_index_error() {
         Err(GetDisjointMutError::IndexOutOfBounds)
     );
 }
+
+#[test]
+fn vacant_entry_key_after_compact() {
+    let mut slab = Slab::new();
+    slab.insert("a");
+    slab.insert("b");
+    slab.insert("c");
+    slab.remove(1);
+    slab.compact(|_, _, _| true);
+    let key = slab.vacant_entry().key();
+    assert_eq!(slab.insert("d"), key);
+}
+
+#[test]
+fn drain_empty_slab() {
+    let mut slab = Slab::<i32>::new();
+    let mut drain = slab.drain();
+    assert_eq!(drain.len(), 0);
+    assert_eq!(drain.next(), None);
+    assert_eq!(drain.next_back(), None);
+    drop(drain);
+    assert!(slab.is_empty());
+}
+
+#[test]
+fn drain_drop_clears_remaining_entries() {
+    let mut slab = Slab::new();
+    slab.insert(0);
+    slab.insert(1);
+    slab.insert(2);
+    slab.insert(3);
+    {
+        let mut drain = slab.drain();
+        assert_eq!(drain.next(), Some(0));
+    }
+    assert!(slab.is_empty());
+    assert_eq!(slab.len(), 0);
+}
+
+#[test]
+#[should_panic(expected = "assertion failed")]
+fn get2_mut_equal_indices_panics() {
+    let mut slab = Slab::new();
+    let key = slab.insert(1);
+    slab.get2_mut(key, key);
+}
+
+#[test]
+#[should_panic]
+fn get2_mut_one_out_of_bounds() {
+    let mut slab = Slab::new();
+    let key = slab.insert(1);
+    slab.get2_mut(key, 999);
+}
+
+#[test]
+fn get2_mut_one_vacant() {
+    let mut slab = Slab::new();
+    let k1 = slab.insert(1);
+    let k2 = slab.insert(2);
+    slab.remove(k2);
+    assert_eq!(slab.get2_mut(k1, k2), None);
+    assert_eq!(slab.get2_mut(k2, k1), None);
+}
+
+#[test]
+fn get2_mut_success() {
+    let mut slab = Slab::new();
+    let k1 = slab.insert(1);
+    let k2 = slab.insert(2);
+    let (v1, v2) = slab.get2_mut(k1, k2).unwrap();
+    std::mem::swap(v1, v2);
+    assert_eq!(slab[k1], 2);
+    assert_eq!(slab[k2], 1);
+}
+
+#[test]
+fn get_disjoint_mut_two_equal_indices() {
+    let mut slab = Slab::from_iter((0..3).enumerate());
+    assert_eq!(
+        slab.get_disjoint_mut([1, 1]),
+        Err(GetDisjointMutError::OverlappingIndices)
+    );
+}
