@@ -632,7 +632,7 @@ impl<T> Slab<T> {
     ///
     /// assert_eq!(3, slab.len());
     /// ```
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.len
     }
 
@@ -648,7 +648,7 @@ impl<T> Slab<T> {
     /// slab.insert(1);
     /// assert!(!slab.is_empty());
     /// ```
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.len == 0
     }
 
@@ -1055,7 +1055,7 @@ impl<T> Slab<T> {
     /// slab.remove(0);
     /// assert_eq!(slab.vacant_key(), 0);
     /// ```
-    pub fn vacant_key(&self) -> usize {
+    pub const fn vacant_key(&self) -> usize {
         self.next
     }
 
@@ -1472,7 +1472,7 @@ impl<'a, T> VacantEntry<'a, T> {
     /// assert_eq!(hello, slab[hello].0);
     /// assert_eq!("hello", slab[hello].1);
     /// ```
-    pub fn key(&self) -> usize {
+    pub const fn key(&self) -> usize {
         self.key
     }
 }
