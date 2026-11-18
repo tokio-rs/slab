@@ -1,10 +1,11 @@
 use core::fmt;
 use core::marker::PhantomData;
+use core::{cmp, mem};
 
 use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, Serializer};
 
-use super::{builder::Builder, Slab};
+use super::{builder::Builder, Entry, Slab};
 
 impl<T> Serialize for Slab<T>
 where
@@ -39,7 +40,9 @@ where
     where
         A: MapAccess<'de>,
     {
-        let mut builder = Builder::with_capacity(map.size_hint().unwrap_or(0));
+        // The hint comes from the input, don't let it pick the allocation size.
+        let max = 1024 * 1024 / cmp::max(mem::size_of::<Entry<T>>(), 1);
+        let mut builder = Builder::with_capacity(cmp::min(map.size_hint().unwrap_or(0), max));
 
         while let Some((key, value)) = map.next_entry()? {
             builder.pair(key, value)
