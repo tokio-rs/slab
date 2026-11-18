@@ -735,6 +735,54 @@ fn clone_from() {
 }
 
 #[test]
+fn clone_from_handles_clone_panic() {
+    #[derive(Debug)]
+    struct PanicOnClone(bool);
+    impl Clone for PanicOnClone {
+        fn clone(&self) -> Self {
+            assert!(!self.0, "test");
+            PanicOnClone(false)
+        }
+    }
+
+    let mut src = Slab::new();
+    src.insert(PanicOnClone(false));
+    src.insert(PanicOnClone(true));
+    let mut dst = Slab::new();
+    for _ in 0..4 {
+        dst.insert(PanicOnClone(false));
+    }
+
+    let result = catch_unwind(AssertUnwindSafe(|| dst.clone_from(&src)));
+    assert!(result.is_err());
+    assert_eq!(dst.len(), 0);
+    assert_eq!(dst.insert(PanicOnClone(false)), 0);
+    assert_eq!(dst.len(), 1);
+}
+
+#[test]
+fn clear_handles_drop_panic() {
+    struct PanicOnDrop(bool);
+    impl Drop for PanicOnDrop {
+        fn drop(&mut self) {
+            assert!(!self.0, "test");
+        }
+    }
+
+    let mut slab = Slab::new();
+    let key = slab.insert(PanicOnDrop(false));
+    slab.insert(PanicOnDrop(true));
+    slab.insert(PanicOnDrop(false));
+    slab.remove(key);
+
+    let result = catch_unwind(AssertUnwindSafe(|| slab.clear()));
+    assert!(result.is_err());
+    assert_eq!(slab.len(), 0);
+    assert_eq!(slab.insert(PanicOnDrop(false)), 0);
+    assert_eq!(slab.len(), 1);
+}
+
+#[test]
 fn get_disjoint_mut() {
     let mut slab = Slab::from_iter((0..5).enumerate());
     slab.remove(1);
