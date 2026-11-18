@@ -414,6 +414,17 @@ fn from_iterator_unordered() {
     assert_eq!(iter.next(), None);
 }
 
+#[test]
+fn from_iterator_duplicate_keys() {
+    let slab = vec![(2, "a"), (0, "b"), (2, "c"), (0, "d")]
+        .into_iter()
+        .collect::<Slab<_>>();
+    assert_eq!(slab.len(), 2);
+    assert_eq!(slab[0], "d");
+    assert_eq!(slab[2], "c");
+    assert_eq!(slab.vacant_key(), 1);
+}
+
 // https://github.com/tokio-rs/slab/issues/100
 #[test]
 fn from_iterator_issue_100() {
