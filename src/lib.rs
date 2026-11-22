@@ -166,9 +166,19 @@ where
     }
 
     fn clone_from(&mut self, source: &Self) {
-        self.entries.clone_from(&source.entries);
-        self.len = source.len;
-        self.next = source.next;
+        // If `T::clone` panics, `entries` is left half overwritten and no
+        // longer matches `len`/`next`, so empty the slab instead.
+        struct ClearOnUnwind<'a, T>(&'a mut Slab<T>);
+        impl<T> Drop for ClearOnUnwind<'_, T> {
+            fn drop(&mut self) {
+                self.0.clear();
+            }
+        }
+        let guard = ClearOnUnwind(self);
+        guard.0.entries.clone_from(&source.entries);
+        guard.0.len = source.len;
+        guard.0.next = source.next;
+        mem::forget(guard);
     }
 }
 
@@ -613,9 +623,10 @@ impl<T> Slab<T> {
     /// assert!(slab.is_empty());
     /// ```
     pub fn clear(&mut self) {
-        self.entries.clear();
+        // Reset first, a panicking `Drop` must not leave a stale `len`.
         self.len = 0;
         self.next = 0;
+        self.entries.clear();
     }
 
     /// Return the number of stored values.
