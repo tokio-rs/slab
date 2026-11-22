@@ -780,3 +780,13 @@ fn get_disjoint_mut_out_of_bounds_index_error() {
         Err(GetDisjointMutError::IndexOutOfBounds)
     );
 }
+
+#[test]
+fn get2_mut_out_of_bounds_returns_none() {
+    let mut slab = Slab::with_capacity(1);
+    let key = slab.insert(10);
+
+    assert!(slab.get2_mut(5, key).is_none());
+    assert!(slab.get2_mut(key, 5).is_none());
+    assert!(slab.get2_mut(key, key + 1).is_none());
+}

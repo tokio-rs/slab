@@ -791,6 +791,10 @@ impl<T> Slab<T> {
     pub fn get2_mut(&mut self, key1: usize, key2: usize) -> Option<(&mut T, &mut T)> {
         assert!(key1 != key2);
 
+        if key1 >= self.entries.len() || key2 >= self.entries.len() {
+            return None;
+        }
+
         let (entry1, entry2);
 
         if key1 > key2 {
