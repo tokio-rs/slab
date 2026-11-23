@@ -5,6 +5,9 @@ pub(crate) struct Builder<T> {
     slab: Slab<T>,
     vacant_list_broken: bool,
     first_vacant_index: Option<usize>,
+    // `len` is derived from this in `build()`, so pushing in order
+    // doesn't have to update a counter for every pair.
+    vacant: usize,
 }
 
 impl<T> Builder<T> {
@@ -13,6 +16,7 @@ impl<T> Builder<T> {
             slab: Slab::with_capacity(capacity),
             vacant_list_broken: false,
             first_vacant_index: None,
+            vacant: 0,
         }
     }
     pub(crate) fn pair(&mut self, key: usize, value: T) {
@@ -21,7 +25,7 @@ impl<T> Builder<T> {
             // iterator is not sorted, might need to recreate vacant list
             if let Entry::Vacant(_) = slab.entries[key] {
                 self.vacant_list_broken = true;
-                slab.len += 1;
+                self.vacant -= 1;
             }
             // if an element with this key already exists, replace it.
             // This is consistent with HashMap and BtreeMap
@@ -31,6 +35,7 @@ impl<T> Builder<T> {
                 self.first_vacant_index = Some(slab.entries.len());
             }
             // insert holes as necessary
+            self.vacant += key - slab.entries.len();
             while slab.entries.len() < key {
                 // add the entry to the start of the vacant list
                 let next = slab.next;
@@ -38,12 +43,12 @@ impl<T> Builder<T> {
                 slab.entries.push(Entry::Vacant(next));
             }
             slab.entries.push(Entry::Occupied(value));
-            slab.len += 1;
         }
     }
 
     pub(crate) fn build(self) -> Slab<T> {
         let mut slab = self.slab;
+        slab.len = slab.entries.len() - self.vacant;
         if slab.len == slab.entries.len() {
             // no vacant entries, so next might not have been updated
             slab.next = slab.entries.len();
