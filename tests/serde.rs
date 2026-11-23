@@ -47,3 +47,26 @@ fn test_serde() {
         ],
     );
 }
+
+#[test]
+fn test_serde_untrusted_len_hint() {
+    use serde::de::value::{Error, MapDeserializer};
+
+    // Claims a huge length but yields one pair.
+    struct Lying(Option<(usize, u64)>);
+    impl Iterator for Lying {
+        type Item = (usize, u64);
+        fn next(&mut self) -> Option<Self::Item> {
+            self.0.take()
+        }
+        fn size_hint(&self) -> (usize, Option<usize>) {
+            (1 << 24, Some(1 << 24))
+        }
+    }
+
+    let de = MapDeserializer::<_, Error>::new(Lying(Some((0, 7))));
+    let slab = Slab::<u64>::deserialize(de).unwrap();
+    assert_eq!(slab.len(), 1);
+    assert_eq!(slab[0], 7);
+    assert!(slab.capacity() < 1 << 24);
+}
